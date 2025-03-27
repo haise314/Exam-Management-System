@@ -3,6 +3,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
 from datetime import datetime
+from config import THEME, BUTTON_COLORS
+from components import BaseModal
 
 class TraineeDashboard:
     def __init__(self, master, db_manager, username, logout_callback):
@@ -11,38 +13,47 @@ class TraineeDashboard:
         self.username = username
         self.logout_callback = logout_callback
 
-        # Create main trainee dashboard frame
-        self.trainee_frame = ctk.CTkFrame(master)
+        # Update main frame styling
+        self.trainee_frame = ctk.CTkFrame(
+            master,
+            fg_color=THEME["colors"]["background"]
+        )
         self.trainee_frame.pack(expand=True, fill="both", padx=20, pady=20)
+
+        # Update title styling
+        title_label = ctk.CTkLabel(
+            self.trainee_frame,
+            text=f"Trainee Dashboard - {self.username}",
+            font=THEME["fonts"]["heading"],
+            text_color=THEME["colors"]["text"]
+        )
+        title_label.pack(pady=(20, 10))
+
+        # Update tabview styling
+        self.tabview = ctk.CTkTabview(
+            self.trainee_frame,
+            fg_color=THEME["colors"]["surface"]
+        )
+        self.tabview.pack(expand=True, fill="both", padx=10, pady=10)
+
+        # Update logout button styling
+        logout_button = ctk.CTkButton(
+            self.trainee_frame,
+            text="Logout",
+            command=self.logout,
+            fg_color=THEME["colors"]["primary"],
+            hover_color=THEME["colors"]["primary_hover"]
+        )
+        logout_button.pack(pady=10)
 
         # Fetch trainee details
         trainee_details = self.get_trainee_details()
 
-        # Create dashboard title
-        title_label = ctk.CTkLabel(
-            self.trainee_frame, 
-            text=f"Trainee Dashboard - {trainee_details['name']}", 
-            font=("Helvetica", 24, "bold")
-        )
-        title_label.pack(pady=(20, 10))
-
         # Create tabs
-        self.tabview = ctk.CTkTabview(self.trainee_frame)
-        self.tabview.pack(expand=True, fill="both", padx=10, pady=10)
-
-        # Add tabs
         tabs = ["Profile", "Exams", "Results"]
         for tab_name in tabs:
             tab = self.tabview.add(tab_name)
             self.create_tab_content(tab, tab_name.lower(), trainee_details)
-
-        # Logout button
-        logout_button = ctk.CTkButton(
-            self.trainee_frame, 
-            text="Logout", 
-            command=self.logout
-        )
-        logout_button.pack(pady=10)
 
     def get_trainee_details(self):
         # Fetch trainee details from database
@@ -109,140 +120,179 @@ class TraineeDashboard:
             value_widget.pack(side="left")
 
     def create_exams_tab(self, tab, trainee_details):
-        # Create frame for exams
-        frame = ctk.CTkFrame(tab)
+        frame = ctk.CTkFrame(tab, fg_color=THEME["colors"]["surface"])
         frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        # Fetch available exams for the trainee's batch
-        conn = sqlite3.connect('exam_management.db')
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT id, title, module_no, num_items, time_limit 
-            FROM exams 
-            WHERE batch_id = ?
-        """, (trainee_details['batch_id'],))
-        
-        exams = cursor.fetchall()
-        conn.close()
+        # Create modern table style
+        style = self.create_table_style()
 
-        # Create Treeview for exams
-        columns = ["Title", "Module", "Items", "Time Limit"]
-        table = ttk.Treeview(frame, columns=columns, show='headings')
-        
-        for col in columns:
-            table.heading(col, text=col)
-            table.column(col, width=100, anchor='center')
-        
-        # Populate exams
-        for exam in exams:
-            table.insert('', 'end', values=(exam[1], exam[2], exam[3], f"{exam[4]} mins"))
-        
-        table.pack(expand=True, fill="both", padx=10, pady=10)
-
-        # Take Exam button
-        take_exam_button = ctk.CTkButton(
-            frame, 
-            text="Take Selected Exam", 
-            command=self.take_exam
+        columns = ["Title", "Module", "Items", "Time Limit", "Status"]
+        self.exams_table = ttk.Treeview(
+            frame,
+            columns=columns,
+            show='headings',
+            style="Custom.Treeview"
         )
-        take_exam_button.pack(pady=10)
+
+        for col in columns:
+            self.exams_table.heading(col, text=col)
+            self.exams_table.column(col, width=100, anchor='center')
+
+        # Add scrollbars
+        y_scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.exams_table.yview)
+        self.exams_table.configure(yscrollcommand=y_scrollbar.set)
+
+        # Pack table and scrollbar
+        self.exams_table.pack(side="left", expand=True, fill="both", padx=(5, 0))
+        y_scrollbar.pack(side="right", fill="y")
+
+        # Populate table with available exams
+        try:
+            available_exams = self.db_manager.get_available_exams(trainee_details['id'])
+            for exam in available_exams:
+                values = (
+                    exam['title'],
+                    exam['module_no'],
+                    exam['num_items'],
+                    f"{exam['time_limit']} mins",
+                    exam['status']
+                )
+                self.exams_table.insert('', 'end', values=values, tags=(exam['id'],))
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load exams: {str(e)}")
+
+        # Add take exam button (only enabled for 'Not Taken' exams)
+        button_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        button_frame.pack(fill="x", pady=10)
+
+        take_exam_btn = ctk.CTkButton(
+            button_frame,
+            text="Take Exam",
+            command=self.take_exam,
+            fg_color=THEME["colors"]["primary"],
+            hover_color=THEME["colors"]["primary_hover"]
+        )
+        take_exam_btn.pack(side="right", padx=5)
+
+        # Bind selection event to enable/disable take exam button
+        def on_select(event):
+            selected = self.exams_table.selection()
+            if selected:
+                item = self.exams_table.item(selected[0])
+                status = item['values'][-1]
+                take_exam_btn.configure(state="normal" if status == "Not Taken" else "disabled")
+            else:
+                take_exam_btn.configure(state="disabled")
+
+        self.exams_table.bind('<<TreeviewSelect>>', on_select)
+        take_exam_btn.configure(state="disabled")  # Initially disabled
+
+    def create_table_style(self):
+        style = ttk.Style()
+        style.configure(
+            "Custom.Treeview",
+            background=THEME["colors"]["surface"],
+            foreground=THEME["colors"]["text"],
+            rowheight=40,
+            fieldbackground=THEME["colors"]["surface"]
+        )
+        style.configure(
+            "Custom.Treeview.Heading",
+            background=THEME["colors"]["primary"],
+            foreground="white",
+            relief="flat"
+        )
+        style.map(
+            "Custom.Treeview",
+            background=[("selected", THEME["colors"]["primary"])],
+            foreground=[("selected", "white")]
+        )
+        return style
 
     def create_results_tab(self, tab, trainee_details):
-        # Create frame for results
-        frame = ctk.CTkFrame(tab)
+        frame = ctk.CTkFrame(
+            tab,
+            fg_color=THEME["colors"]["surface"]
+        )
         frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        # Fetch exam results
-        conn = sqlite3.connect('exam_management.db')
-        cursor = conn.cursor()
+        # Create styled table
+        style = self.create_table_style()
         
-        cursor.execute("""
-            SELECT e.title, r.competency, r.date_taken, r.remarks
-            FROM results r
-            JOIN exams e ON r.exam_id = e.id
-            WHERE r.trainee_id = ?
-        """, (trainee_details['id'],))
-        
-        results = cursor.fetchall()
-        conn.close()
-
-        # Create Treeview for results
-        columns = ["Exam", "Competency", "Date Taken", "Remarks"]
-        table = ttk.Treeview(frame, columns=columns, show='headings')
+        columns = ["Exam", "Score", "Percentage", "Date Taken", "Status"]
+        table = ttk.Treeview(
+            frame,
+            columns=columns,
+            show='headings',
+            style="Custom.Treeview"
+        )
         
         for col in columns:
             table.heading(col, text=col)
             table.column(col, width=100, anchor='center')
+
+        # Add scrollbars
+        y_scrollbar = ttk.Scrollbar(frame, orient="vertical", command=table.yview)
+        table.configure(yscrollcommand=y_scrollbar.set)
         
-        # Populate results
-        for result in results:
-            table.insert('', 'end', values=result)
-        
-        table.pack(expand=True, fill="both", padx=10, pady=10)
+        table.pack(expand=True, fill="both", side="left")
+        y_scrollbar.pack(fill="y", side="right")
 
     def take_exam(self):
-        """Implement exam taking functionality"""
-        # Get selected exam from treeview
-        selected_item = self.exams_table.selection()
-        if not selected_item:
-            messagebox.showerror("Error", "Please select an exam to take")
+        selected = self.exams_table.selection()
+        if not selected:
+            messagebox.showerror("Error", "Please select an exam")
             return
 
-        exam_details = self.exams_table.item(selected_item[0])['values']
-        exam_id = self.available_exams[exam_details[0]]  # Map exam title to ID
+        exam_id = self.exams_table.item(selected[0])['values'][0]
+        exam_details = self.db_manager.get_exam_details(exam_id)
 
-        # Open exam window
-        exam_window = ctk.CTkToplevel(self.master)
-        exam_window.title(f"Exam: {exam_details[0]}")
-        exam_window.geometry("600x500")
+        # Create exam window
+        exam_window = BaseModal(
+            self.master,
+            f"Exam: {exam_details['title']}",
+            size="800x600"
+        )
 
-        # Fetch exam questions
+        # Add timer
+        remaining_time = exam_details['time_limit'] * 60  # Convert to seconds
+        timer_label = ctk.CTkLabel(
+            exam_window,
+            text=f"Time Remaining: {remaining_time//60}:{remaining_time%60:02d}"
+        )
+        timer_label.pack(pady=10)
+
+        # Create question form
         questions = self.db_manager.get_exam_questions(exam_id)
-        
-        # Create exam interface
-        exam_frame = ctk.CTkScrollableFrame(exam_window)
-        exam_frame.pack(expand=True, fill="both", padx=10, pady=10)
-
-        # Render questions dynamically
         answers = {}
-        for idx, (q_id, question_text, correct_answer, points) in enumerate(questions, 1):
-            question_label = ctk.CTkLabel(exam_frame, text=f"{idx}. {question_text}")
-            question_label.pack(pady=(10, 5))
 
-            # Multiple choice or true/false
+        for q in questions:
+            q_frame = ctk.CTkFrame(exam_window.scrollable_frame)
+            q_frame.pack(fill="x", pady=10)
+            
+            ctk.CTkLabel(
+                q_frame,
+                text=q['question'],
+                wraplength=700
+            ).pack(pady=5)
+
             answer_var = tk.StringVar()
-            options = [correct_answer, "Incorrect Option 1", "Incorrect Option 2", "Incorrect Option 3"]
-            for option in options:
-                radio_btn = ctk.CTkRadioButton(
-                    exam_frame, 
-                    text=option, 
-                    variable=answer_var, 
+            answers[q['id']] = answer_var
+
+            for option in q['options']:
+                ctk.CTkRadioButton(
+                    q_frame,
+                    text=option,
+                    variable=answer_var,
                     value=option
-                )
-                radio_btn.pack(pady=2)
-            
-            answers[q_id] = answer_var
+                ).pack(pady=2)
 
-        def submit_exam():
-            # Calculate score
-            total_score = 0
-            for q_id, (_, _, correct_answer, points) in enumerate(questions):
-                if answers[q_id].get() == correct_answer:
-                    total_score += points
-            
-            # Submit result
-            self.db_manager.submit_exam_result(
-                trainee_id=self.trainee_details['id'], 
-                exam_id=exam_id, 
-                score=total_score
-            )
-            
-            messagebox.showinfo("Exam Completed", f"Your score: {total_score}")
-            exam_window.destroy()
-
-        submit_button = ctk.CTkButton(exam_frame, text="Submit Exam", command=submit_exam)
-        submit_button.pack(pady=20)
+        # Submit button
+        ctk.CTkButton(
+            exam_window,
+            text="Submit",
+            command=lambda: self.submit_exam(exam_id, answers, exam_window)
+        ).pack(pady=20)
 
     def logout(self):
         # Destroy trainee frame and return to login

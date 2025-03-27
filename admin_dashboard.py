@@ -3,6 +3,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from datetime import datetime
 import sqlite3
+from config import THEME, BUTTON_COLORS
+from components import BaseModal  # Add this import
 
 class AdminDashboard:
     def __init__(self, master, db_manager, logout_callback):
@@ -12,15 +14,16 @@ class AdminDashboard:
         self.current_tab = "trainers"
         self.selected_record_id = None
 
-        # Create main container
-        self.main_container = ctk.CTkFrame(master)
+        # Create main container with light theme
+        self.main_container = ctk.CTkFrame(master, fg_color="#f5f5f5")  # Light gray background
         self.main_container.pack(expand=True, fill="both")
 
-        # Create sidebar
+        # Create sidebar with darker accent
         self.sidebar = ctk.CTkFrame(
             self.main_container,
             width=200,
-            corner_radius=0
+            corner_radius=0,
+            fg_color="#2d5a9e"  # Dark blue sidebar
         )
         self.sidebar.pack(side="left", fill="y", padx=0, pady=0)
         self.sidebar.pack_propagate(False)
@@ -63,7 +66,10 @@ class AdminDashboard:
         logout_button.pack(side="bottom", pady=20)
 
         # Main content area
-        self.content_frame = ctk.CTkFrame(self.main_container)
+        self.content_frame = ctk.CTkFrame(
+            self.main_container,
+            fg_color="#ffffff"  # White background
+        )
         self.content_frame.pack(side="left", expand=True, fill="both", padx=20, pady=20)
 
         # Initialize with first tab
@@ -87,6 +93,9 @@ class AdminDashboard:
 
         # Create new tab content
         self.create_tab_content(self.content_frame, self.current_tab)
+        
+        # Refresh table data immediately after creation
+        self.refresh_table()
 
     def create_tab_content(self, tab, tab_type):
         # Main container frame
@@ -130,7 +139,10 @@ class AdminDashboard:
                 text=text,
                 command=command,
                 width=120,
-                height=32
+                height=32,
+                fg_color=BUTTON_COLORS["primary"][0],
+                hover_color=BUTTON_COLORS["primary"][1],
+                text_color="white"
             )
             btn.pack(side="left", padx=5)
 
@@ -140,23 +152,51 @@ class AdminDashboard:
 
         # Create table with custom style
         style = ttk.Style()
+        
+        # Configure the custom style for the table
         style.configure(
             "Custom.Treeview",
-            background="#2b2b2b",
-            foreground="white",
-            fieldbackground="#2b2b2b",
-            rowheight=25
+            background="#ffffff",      # White background
+            foreground="#1a1a1a",     # Dark text
+            fieldbackground="#ffffff",
+            rowheight=30,             # Increased row height
+            borderwidth=0,            # Remove border
+            font=('Helvetica', 10)
         )
+        
+        # Configure the headers
         style.configure(
             "Custom.Treeview.Heading",
-            background="#1f538d",
-            foreground="white",
-            relief="flat"
+            background="#f0f0f0",     # Light gray header background
+            foreground="#1a1a1a",     # Black text for headers
+            relief="flat",
+            font=('Helvetica', 10, 'bold'),
+            borderwidth=0,
+            padding=5                 # Add padding to headers
         )
+        
+        # Configure selection colors and alternating rows
         style.map(
             "Custom.Treeview",
-            background=[("selected", "#1f538d")],
-            foreground=[("selected", "white")]
+            background=[
+                ("selected", "#e6f3ff"),    # Light blue selection
+                ("!selected", "#ffffff"),    # White background
+                ("alternate", "#fafafa")     # Very light gray alternating rows
+            ],
+            foreground=[
+                ("selected", "#1a1a1a"),    # Keep text dark even when selected
+                ("!selected", "#1a1a1a")
+            ]
+        )
+
+        # Configure the scrollbar style
+        style.configure(
+            "Custom.Vertical.TScrollbar",
+            background="#ffffff",
+            troughcolor="#f0f0f0",
+            bordercolor="#e0e0e0",
+            arrowcolor="#666666",     # Darker arrows
+            width=12                  # Slightly wider scrollbar
         )
 
         columns = self.get_columns(tab_type)
@@ -167,14 +207,40 @@ class AdminDashboard:
             style="Custom.Treeview"
         )
 
-        # Configure columns
+        # Configure columns with better spacing
         for col in columns:
-            table.heading(col, text=col.replace('_', ' ').title())
-            table.column(col, width=100)
+            table.heading(
+                col, 
+                text=col.replace('_', ' ').title(),
+                anchor="w"            # Left-align headers
+            )
+            table.column(
+                col, 
+                width=100,
+                minwidth=50,
+                anchor="w"            # Left-align content
+            )
+
+        # Add a subtle border to the table frame
+        table_frame.configure(
+            border_width=1,
+            border_color="#e0e0e0",
+            corner_radius=6
+        )
 
         # Add scrollbars
-        y_scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=table.yview)
-        x_scrollbar = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL, command=table.xview)
+        y_scrollbar = ttk.Scrollbar(
+            table_frame,
+            orient=tk.VERTICAL,
+            command=table.yview,
+            style="Custom.Vertical.TScrollbar"
+        )
+        x_scrollbar = ttk.Scrollbar(
+            table_frame,
+            orient=tk.HORIZONTAL,
+            command=table.xview,
+            style="Custom.Vertical.TScrollbar"
+        )
         table.configure(yscroll=y_scrollbar.set, xscroll=x_scrollbar.set)
 
         # Pack table and scrollbars
@@ -205,21 +271,15 @@ class AdminDashboard:
             table.insert('', 'end', values=record)
 
     def open_exam_details_modal(self, mode="add"):
-        modal = ctk.CTkToplevel(self.master)
-        modal.title(f"{mode.capitalize()} Exam Details")
-        modal.geometry("400x500")
+        modal = BaseModal(
+            self.master,
+            f"{mode.capitalize()} Exam Details",
+            "400x500"
+        )
 
         # Create form frame
-        form_frame = ctk.CTkFrame(modal)
-        form_frame.pack(expand=True, fill="both", padx=20, pady=20)
-
-        # Title
-        title_label = ctk.CTkLabel(
-            form_frame,
-            text=f"{mode.capitalize()} Exam Details",
-            font=("Helvetica", 16, "bold")
-        )
-        title_label.pack(pady=(0, 20))
+        form_frame = ctk.CTkFrame(modal.container, fg_color="transparent")
+        form_frame.pack(expand=True, fill="both")
 
         # Input fields
         fields = ["title", "module_no", "num_items", "time_limit", "batch_id"]
@@ -236,7 +296,15 @@ class AdminDashboard:
             )
             label.pack(side="left", padx=5)
 
-            entry = ctk.CTkEntry(field_frame)
+            entry = ctk.CTkEntry(
+                field_frame,
+                placeholder_text=f"Enter {field.replace('_', ' ')}...",
+                fg_color="#ffffff",
+                border_color="#2d5a9e",
+                border_width=1,
+                text_color="#1a1a1a",
+                placeholder_text_color="#999999"
+            )
             entry.pack(side="left", expand=True, fill="x", padx=5)
             input_fields[field] = entry
 
@@ -244,7 +312,6 @@ class AdminDashboard:
         if mode == "update" and self.selected_record_id:
             record = self.db_manager.get_record_by_id('exams', self.selected_record_id)
             if record:
-                # Map record values to fields
                 field_values = dict(zip(fields, record[1:]))  # Skip ID
                 for field, value in field_values.items():
                     if value is not None:
@@ -266,45 +333,41 @@ class AdminDashboard:
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
-        # Buttons
-        button_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-        button_frame.pack(pady=20)
-
-        ctk.CTkButton(
-            button_frame,
-            text="Save",
-            command=save,
-            width=100
-        ).pack(side="left", padx=5)
-
-        ctk.CTkButton(
-            button_frame,
-            text="Cancel",
-            command=modal.destroy,
-            width=100
-        ).pack(side="left", padx=5)
+        # Create buttons
+        modal.create_button_group([
+            ("Save", save, ("#1f538d", "#164279")),
+            ("Cancel", modal.destroy, ("gray", "darkgray"))
+        ])
 
     def open_questions_modal(self):
         if not self.selected_record_id:
             messagebox.showerror("Error", "Please select an exam first")
             return
 
-        modal = ctk.CTkToplevel(self.master)
-        modal.title("Manage Exam Questions")
-        modal.geometry("800x600")
+        modal = BaseModal(
+            self.master,
+            "Manage Exam Questions",
+            "800x600"
+        )
 
-        # Main container
-        container = ctk.CTkFrame(modal)
-        container.pack(expand=True, fill="both", padx=20, pady=20)
-
-        # Questions list frame
-        questions_frame = ctk.CTkScrollableFrame(container)
+        # Questions list frame with custom styling
+        questions_frame = ctk.CTkScrollableFrame(
+            modal.container,
+            fg_color="#333333",
+            corner_radius=6
+        )
         questions_frame.pack(expand=True, fill="both", pady=(0, 10))
 
         questions_list = []
 
         def add_question(question_data=None):
-            question_frame = ctk.CTkFrame(questions_frame)
+            question_frame = ctk.CTkFrame(
+                questions_frame,
+                fg_color="#ffffff",
+                corner_radius=6,
+                border_width=1,
+                border_color="#e0e0e0"
+            )
             question_frame.pack(fill="x", padx=5, pady=5)
 
             # Question number
@@ -312,12 +375,20 @@ class AdminDashboard:
             q_label = ctk.CTkLabel(
                 question_frame,
                 text=f"Question {q_num}",
-                font=("Helvetica", 12, "bold")
+                font=("Helvetica", 12, "bold"),
+                text_color="#1a1a1a"
             )
             q_label.pack(pady=5)
 
             # Question text
-            q_text = ctk.CTkTextbox(question_frame, height=60)
+            q_text = ctk.CTkTextbox(
+                question_frame,
+                height=60,
+                fg_color="#ffffff",
+                border_color="#2d5a9e",
+                border_width=1,
+                text_color="#1a1a1a"
+            )
             q_text.pack(fill="x", padx=5, pady=5)
 
             # Options frame
@@ -332,11 +403,18 @@ class AdminDashboard:
                 option_label = ctk.CTkLabel(
                     option_frame,
                     text=f"Option {chr(65+i)}:",
-                    width=70
+                    width=70,
+                    text_color="#1a1a1a"
                 )
                 option_label.pack(side="left", padx=5)
                 
-                option_entry = ctk.CTkEntry(option_frame)
+                option_entry = ctk.CTkEntry(
+                    option_frame,
+                    fg_color="#ffffff",
+                    border_color="#2d5a9e",
+                    border_width=1,
+                    text_color="#1a1a1a"
+                )
                 option_entry.pack(side="left", expand=True, fill="x", padx=5)
                 
                 options.append(option_entry)
@@ -353,7 +431,9 @@ class AdminDashboard:
             correct_menu = ctk.CTkOptionMenu(
                 settings_frame,
                 values=["A", "B", "C", "D"],
-                variable=correct_var
+                variable=correct_var,
+                fg_color="#ffffff",
+                text_color="#1a1a1a"
             )
             correct_menu.pack(side="left", padx=5)
 
@@ -361,7 +441,7 @@ class AdminDashboard:
             points_label = ctk.CTkLabel(settings_frame, text="Points:")
             points_label.pack(side="left", padx=5)
             
-            points_entry = ctk.CTkEntry(settings_frame, width=50)
+            points_entry = ctk.CTkEntry(settings_frame, width=50, fg_color="#ffffff", text_color="#1a1a1a")
             points_entry.insert(0, "1")
             points_entry.pack(side="left", padx=5)
 
@@ -370,8 +450,9 @@ class AdminDashboard:
                 question_frame,
                 text="Delete Question",
                 command=lambda: remove_question(question_frame),
-                fg_color="red",
-                hover_color="darkred"
+                fg_color=BUTTON_COLORS["danger"][0],
+                hover_color=BUTTON_COLORS["danger"][1],
+                text_color="white"
             )
             delete_btn.pack(pady=5)
 
@@ -419,7 +500,7 @@ class AdminDashboard:
 
         # Add question button
         add_button = ctk.CTkButton(
-            container,
+            modal.container,
             text="Add New Question",
             command=lambda: add_question()
         )
@@ -457,7 +538,7 @@ class AdminDashboard:
 
         # Save button
         save_button = ctk.CTkButton(
-            container,
+            modal.container,
             text="Save All Questions",
             command=save_questions
         )
@@ -465,80 +546,118 @@ class AdminDashboard:
 
     def open_modal(self, mode="add"):
         if self.current_tab == "exams":
-            self.open_exam_modal(mode, self.selected_record_id if mode == "update" else None)
-        else:
-            # Original modal code for other tabs
-            modal = tk.Toplevel(self.master)
-            modal.title(f"{mode.capitalize()} {self.current_tab.title()}")
-            modal.geometry("400x400")
+            self.open_exam_details_modal(mode, self.selected_record_id if mode == "update" else None)
+            return
 
-            # Create a canvas with scrollbar for many fields
-            canvas = tk.Canvas(modal)
-            scrollbar = tk.Scrollbar(modal, orient="vertical", command=canvas.yview)
-            scrollable_frame = tk.Frame(canvas)
+        modal = BaseModal(
+            self.master,
+            f"{mode.capitalize()} {self.current_tab.title()}",
+            "500x600"
+        )
 
-            scrollable_frame.bind(
-                "<Configure>",
-                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        # Create scrollable form frame
+        form_frame = ctk.CTkScrollableFrame(
+            modal.container,
+            fg_color="transparent"
+        )
+        form_frame.pack(expand=True, fill="both", padx=5, pady=5)
+
+        input_fields = {}
+        fields = self.get_fields(self.current_tab)
+
+        for field in fields:
+            if field == 'id':  # Skip ID field
+                continue
+            
+            field_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+            field_frame.pack(fill="x", pady=8)  # Increased spacing between fields
+
+            label = ctk.CTkLabel(
+                field_frame,
+                text=field.replace('_', ' ').title() + ":",
+                width=120,
+                anchor="e",          # Right-align labels
+                text_color="#1a1a1a"
             )
+            label.pack(side="left", padx=5)
 
-            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-            canvas.configure(yscrollcommand=scrollbar.set)
-
-            input_fields = {}
-            fields = self.get_fields(self.current_tab)
-
-            for idx, label in enumerate(fields):
-                if label == 'id':  # Skip ID field for add/update
-                    continue
+            if field in ['hire_date', 'date_taken']:
+                # Date field with hint
+                entry_frame = ctk.CTkFrame(field_frame, fg_color="transparent")
+                entry_frame.pack(side="left", expand=True, fill="x")
                 
-                lbl = tk.Label(scrollable_frame, text=label.replace("_", " ").title())
-                lbl.pack(pady=5)
-
-                # Special handling for date fields
-                if label in ['hire_date', 'date_taken']:
-                    entry = tk.Entry(scrollable_frame)
-                    entry.insert(0, datetime.now().strftime('%Y-%m-%d'))
-                    entry.pack(pady=5)
-                    hint_label = tk.Label(scrollable_frame, text="Format: YYYY-MM-DD", font=("Helvetica", 8))
-                    hint_label.pack()
-                else:
-                    entry = tk.Entry(scrollable_frame)
-                    entry.pack(pady=5)
+                entry = ctk.CTkEntry(
+                    entry_frame,
+                    placeholder_text="YYYY-MM-DD",
+                    fg_color="#ffffff",
+                    border_color="#2d5a9e",
+                    border_width=1,
+                    text_color="#1a1a1a",
+                    placeholder_text_color="#999999",
+                    height=32
+                )
+                entry.pack(fill="x", padx=5)
+                entry.insert(0, datetime.now().strftime('%Y-%m-%d'))
                 
-                input_fields[label] = entry
+                hint_label = ctk.CTkLabel(
+                    entry_frame,
+                    text="Format: YYYY-MM-DD",
+                    font=("Helvetica", 8),
+                    text_color="gray70"
+                )
+                hint_label.pack(pady=(0, 5))
+            else:
+                entry = ctk.CTkEntry(
+                    field_frame,
+                    placeholder_text=f"Enter {field.replace('_', ' ')}...",
+                    fg_color="#ffffff",
+                    border_color="#2d5a9e",
+                    border_width=1,
+                    text_color="#1a1a1a",
+                    placeholder_text_color="#999999",
+                    height=32
+                )
+                entry.pack(side="left", expand=True, fill="x", padx=5)
+            
+            input_fields[field] = entry
 
-            if mode == "update":
-                record = self.db_manager.get_record_by_id(self.current_tab, self.selected_record_id)
-                if record:
-                    # Skip the ID field when populating
-                    for idx, col in enumerate(fields):
-                        if col != 'id':  # Skip ID field
-                            value = record[fields.index(col)]
-                            if value is not None:  # Only set value if not None
-                                input_fields[col].delete(0, tk.END)
-                                input_fields[col].insert(0, str(value))
+        # Populate fields if updating
+        if mode == "update":
+            record = self.db_manager.get_record_by_id(self.current_tab, self.selected_record_id)
+            if record:
+                for idx, col in enumerate(fields):
+                    if col != 'id':
+                        value = record[fields.index(col)]
+                        if value is not None:
+                            input_fields[col].delete(0, tk.END)
+                            input_fields[col].insert(0, str(value))
 
-            def save():
+        def save():
+            try:
                 data = {key: entry.get().strip() for key, entry in input_fields.items()}
-                try:
-                    if mode == "add":
-                        self.db_manager.insert_record(self.current_tab, data)
-                        messagebox.showinfo("Success", "Record added successfully!")
-                    elif mode == "update":
-                        self.db_manager.update_record(self.current_tab, self.selected_record_id, data)
-                        messagebox.showinfo("Success", "Record updated successfully!")
-                    modal.destroy()
-                    self.refresh_table()
-                except sqlite3.Error as e:
-                    messagebox.showerror("Error", f"Database error: {str(e)}")
+                
+                # Validate required fields
+                empty_fields = [k for k, v in data.items() if not v]
+                if empty_fields:
+                    raise ValueError(f"Please fill in all required fields: {', '.join(empty_fields)}")
+                
+                if mode == "add":
+                    self.db_manager.insert_record(self.current_tab, data)
+                    messagebox.showinfo("Success", "Record added successfully!")
+                else:
+                    self.db_manager.update_record(self.current_tab, self.selected_record_id, data)
+                    messagebox.showinfo("Success", "Record updated successfully!")
+                
+                modal.destroy()
+                self.refresh_table()
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
 
-            save_btn = tk.Button(scrollable_frame, text="Save", command=save)
-            save_btn.pack(pady=20)
-
-            # Pack the canvas and scrollbar
-            canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-            scrollbar.pack(side="right", fill="y")
+        # Create buttons with consistent styling
+        modal.create_button_group([
+            ("Save", save, BUTTON_COLORS["primary"]),
+            ("Cancel", modal.destroy, BUTTON_COLORS["secondary"])
+        ])
 
     def add_record(self):
         self.open_modal(mode="add")
@@ -575,3 +694,36 @@ class AdminDashboard:
     def logout(self):
         self.main_container.destroy()
         self.logout_callback()
+
+    def create_results_tab(self, tab):
+        # Create modern table for results
+        columns = [
+            "Trainee", "Exam", "Score", "Percentage",
+            "Date Taken", "Time Spent", "Status"
+        ]
+        
+        self.results_table = self.create_table(tab, columns)
+        
+        # Add filter controls
+        filter_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        filter_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Add batch filter
+        batch_filter = ctk.CTkComboBox(
+            filter_frame,
+            values=self.db_manager.get_batch_list(),
+            command=self.filter_results
+        )
+        batch_filter.pack(side="left", padx=5)
+        
+        # Add export button
+        export_btn = ctk.CTkButton(
+            filter_frame,
+            text="Export Results",
+            command=self.export_results
+        )
+        export_btn.pack(side="right", padx=5)
+
+    def filter_results(self, batch_id=None):
+        results = self.db_manager.get_results(batch_id)
+        self.populate_results_table(results)

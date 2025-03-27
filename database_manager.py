@@ -69,36 +69,21 @@ class DatabaseManager:
         )
         ''')
 
-        self.cursor.execute('''
+        self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             trainee_id INTEGER,
-            trainer_id INTEGER,
             exam_id INTEGER,
-            competency REAL,
+            score INTEGER,
+            total_items INTEGER,
+            percentage REAL,
             date_taken DATETIME,
-            remarks TEXT,
-            FOREIGN KEY (trainee_id) REFERENCES trainees(id),
-            FOREIGN KEY (trainer_id) REFERENCES trainers(id),
-            FOREIGN KEY (exam_id) REFERENCES exams(id)
+            time_spent INTEGER,
+            status TEXT,
+            FOREIGN KEY (trainee_id) REFERENCES trainees (id),
+            FOREIGN KEY (exam_id) REFERENCES exams (id)
         )
-        ''')
-
-        # Results Table
-        self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            trainee_id INTEGER,
-            trainer_id INTEGER,
-            exam_id INTEGER,
-            competency REAL,
-            date_taken DATETIME,
-            remarks TEXT,
-            FOREIGN KEY (trainee_id) REFERENCES trainees(id),
-            FOREIGN KEY (trainer_id) REFERENCES trainers(id),
-            FOREIGN KEY (exam_id) REFERENCES exams(id)
-        )
-        ''')
+        """)
         
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS questions (
@@ -322,5 +307,31 @@ class DatabaseManager:
         except sqlite3.Error as e:
             print(f"Error submitting exam result: {e}")
             return None
+        finally:
+            self.close()
+
+    def get_available_exams(self, trainee_id):
+        """Get exams available for a trainee that haven't been taken yet"""
+        self.connect()
+        try:
+            self.cursor.execute("""
+                SELECT e.id, e.title, e.module_no, e.num_items, e.time_limit,
+                    CASE 
+                        WHEN r.id IS NULL THEN 'Not Taken'
+                        ELSE 'Completed'
+                    END as status
+                FROM exams e
+                LEFT JOIN results r ON e.id = r.exam_id AND r.trainee_id = ?
+                WHERE e.batch_id = (
+                    SELECT batch_id FROM trainees WHERE id = ?
+                )
+            """, (trainee_id, trainee_id))
+            
+            columns = ['id', 'title', 'module_no', 'num_items', 'time_limit', 'status']
+            results = [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+            return results
+        except sqlite3.Error as e:
+            print(f"Error getting available exams: {e}")
+            return []
         finally:
             self.close()

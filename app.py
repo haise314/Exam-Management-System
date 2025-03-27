@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime
 import os
 import sys
+from config import THEME, BUTTON_COLORS  # Add this import
 
 # Import other modules we'll create
 from database_manager import DatabaseManager
@@ -33,22 +34,26 @@ class ExamManagementApp:
             widget.destroy()
 
         # Login Frame
-        self.login_frame = ctk.CTkFrame(self.root)
-        self.login_frame.pack(expand=True, fill="both", padx=20, pady=20)
+        self.login_frame = ctk.CTkFrame(self.root, fg_color=THEME["colors"]["surface"])
+        self.login_frame.pack(expand=True, fill="both", padx=40, pady=40)
 
         # Title
         title_label = ctk.CTkLabel(
             self.login_frame, 
             text="Exam Management System", 
-            font=("Helvetica", 24, "bold")
+            font=THEME["fonts"]["heading"],
+            text_color=THEME["colors"]["text"]
         )
-        title_label.pack(pady=(40, 20))
+        title_label.pack(pady=(40, 30))
 
         # Login Type Selection
         self.login_type = ctk.CTkSegmentedButton(
             self.login_frame, 
             values=["Admin", "Trainee"],
-            command=self.toggle_login_mode
+            command=self.toggle_login_mode,
+            selected_color=THEME["colors"]["primary"],
+            unselected_color=THEME["colors"]["surface"],
+            selected_hover_color=THEME["colors"]["primary_hover"]
         )
         self.login_type.pack(pady=20)
         self.login_type.set("Admin")
