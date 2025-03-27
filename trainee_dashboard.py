@@ -210,33 +210,55 @@ class TraineeDashboard:
         return style
 
     def create_results_tab(self, tab, trainee_details):
-        frame = ctk.CTkFrame(
-            tab,
-            fg_color=THEME["colors"]["surface"]
-        )
-        frame.pack(expand=True, fill="both", padx=10, pady=10)
+        results_frame = ctk.CTkFrame(self.trainee_frame)
+        results_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
-        # Create styled table
-        style = self.create_table_style()
-        
-        columns = ["Exam", "Score", "Percentage", "Date Taken", "Status"]
-        table = ttk.Treeview(
-            frame,
+        # Create results table
+        columns = ("Exam", "Score", "Percentage", "Date Taken", "Time Spent", "Status")
+        self.results_table = ttk.Treeview(
+            results_frame, 
             columns=columns,
-            show='headings',
-            style="Custom.Treeview"
+            show="headings"
         )
-        
-        for col in columns:
-            table.heading(col, text=col)
-            table.column(col, width=100, anchor='center')
 
-        # Add scrollbars
-        y_scrollbar = ttk.Scrollbar(frame, orient="vertical", command=table.yview)
-        table.configure(yscrollcommand=y_scrollbar.set)
+        # Configure columns
+        for col in columns:
+            self.results_table.heading(col, text=col)
+            self.results_table.column(col, width=100)
+
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(
+            results_frame,
+            orient="vertical",
+            command=self.results_table.yview
+        )
+        self.results_table.configure(yscrollcommand=scrollbar.set)
+
+        # Pack widgets
+        self.results_table.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Load results
+        self.refresh_results()
+
+    def refresh_results(self):
+        # Clear existing items
+        for item in self.results_table.get_children():
+            self.results_table.delete(item)
+
+        # Load results
+        results = self.db_manager.get_trainee_results(self.trainee_id)
         
-        table.pack(expand=True, fill="both", side="left")
-        y_scrollbar.pack(fill="y", side="right")
+        # Insert results
+        for result in results:
+            self.results_table.insert("", "end", values=(
+                result['exam_title'],
+                f"{result['score']}/{result['total_items']}",
+                f"{result['percentage']:.1f}%",
+                result['date_taken'],
+                f"{result['time_spent'] // 60}:{result['time_spent'] % 60:02d}",
+                result['status']
+            ))
 
     def take_exam(self):
         selected = self.exams_table.selection()
@@ -246,6 +268,15 @@ class TraineeDashboard:
 
         exam_id = self.exams_table.item(selected[0])['values'][0]
         exam_details = self.db_manager.get_exam_details(exam_id)
+        
+        if not exam_details:
+            messagebox.showerror("Error", "Could not load exam")
+            return
+
+        # Check if exam was already taken
+        if self.db_manager.has_taken_exam(self.trainee_id, exam_id):
+            messagebox.showerror("Error", "You have already taken this exam")
+            return
 
         # Create exam window
         exam_window = BaseModal(
@@ -254,44 +285,83 @@ class TraineeDashboard:
             size="800x600"
         )
 
-        # Add timer
+        # Initialize timer
         remaining_time = exam_details['time_limit'] * 60  # Convert to seconds
-        timer_label = ctk.CTkLabel(
-            exam_window,
-            text=f"Time Remaining: {remaining_time//60}:{remaining_time%60:02d}"
-        )
+        timer_label = ctk.CTkLabel(exam_window, text="")
         timer_label.pack(pady=10)
 
-        # Create question form
+        def update_timer():
+            nonlocal remaining_time
+            if remaining_time > 0:
+                minutes = remaining_time // 60
+                seconds = remaining_time % 60
+                timer_label.configure(text=f"Time Remaining: {minutes:02d}:{seconds:02d}")
+                remaining_time -= 1
+                exam_window.after(1000, update_timer)
+            else:
+                messagebox.showwarning("Time's Up!", "Your time has expired. Submitting exam...")
+                submit_exam()
+
+        # Start timer
+        update_timer()
+
+        # Create scrollable question form
         questions = self.db_manager.get_exam_questions(exam_id)
         answers = {}
 
         for q in questions:
             q_frame = ctk.CTkFrame(exam_window.scrollable_frame)
-            q_frame.pack(fill="x", pady=10)
+            q_frame.pack(fill="x", pady=10, padx=20)
             
+            # Question text
             ctk.CTkLabel(
                 q_frame,
-                text=q['question'],
+                text=f"{q['question_text']}",
                 wraplength=700
             ).pack(pady=5)
 
+            # Answer variable
             answer_var = tk.StringVar()
             answers[q['id']] = answer_var
 
-            for option in q['options']:
+            # Options
+            for option in ['A', 'B', 'C', 'D']:
                 ctk.CTkRadioButton(
                     q_frame,
-                    text=option,
+                    text=q[f'option_{option.lower()}'],
                     variable=answer_var,
                     value=option
                 ).pack(pady=2)
 
+        def submit_exam():
+            # Collect answers
+            submitted_answers = {
+                q_id: var.get() for q_id, var in answers.items()
+            }
+
+            # Calculate time spent
+            time_spent = (exam_details['time_limit'] * 60) - remaining_time
+
+            # Submit exam
+            result = self.db_manager.submit_exam_result(
+                self.trainee_id,
+                exam_id,
+                submitted_answers,
+                time_spent
+            )
+
+            if result:
+                messagebox.showinfo("Success", f"Exam submitted successfully!\nScore: {result['score']}/{result['total_items']}\nPercentage: {result['percentage']}%")
+                exam_window.destroy()
+                self.refresh_exams()  # Refresh exam list
+            else:
+                messagebox.showerror("Error", "Failed to submit exam")
+
         # Submit button
         ctk.CTkButton(
             exam_window,
-            text="Submit",
-            command=lambda: self.submit_exam(exam_id, answers, exam_window)
+            text="Submit Exam",
+            command=submit_exam
         ).pack(pady=20)
 
     def logout(self):
