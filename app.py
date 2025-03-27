@@ -51,36 +51,40 @@ class ExamManagementApp:
             command=self.toggle_login_mode
         )
         self.login_type.pack(pady=20)
-        # self.login_type.set("Admin")
+        self.login_type.set("Admin")
+
+        # Create a frame for input fields to maintain consistent positioning
+        self.input_frame = ctk.CTkFrame(self.login_frame, fg_color="transparent")
+        self.input_frame.pack(pady=10)
 
         # Username Entry
-        self.username_label = ctk.CTkLabel(self.login_frame, text="Username")
+        self.username_label = ctk.CTkLabel(self.input_frame, text="Username")
         self.username_label.pack(pady=(10, 5))
-        self.username_entry = ctk.CTkEntry(self.login_frame, width=300)
+        self.username_entry = ctk.CTkEntry(self.input_frame, width=300)
         self.username_entry.pack()
 
         # Password Entry (for admin)
-        self.password_label = ctk.CTkLabel(self.login_frame, text="Password")
+        self.password_label = ctk.CTkLabel(self.input_frame, text="Password")
         self.password_label.pack(pady=(10, 5))
-        self.password_entry = ctk.CTkEntry(self.login_frame, show="*", width=300)
+        self.password_entry = ctk.CTkEntry(self.input_frame, show="*", width=300)
         self.password_entry.pack()
 
-        # Login Button
-        login_button = ctk.CTkButton(
+        # Login Button (pack this after the input_frame)
+        self.login_button = ctk.CTkButton(
             self.login_frame, 
             text="Login", 
             command=self.login,
             width=300
         )
-        login_button.pack(pady=20)
+        self.login_button.pack(pady=20)
 
     def toggle_login_mode(self, mode):
         if mode == "Trainee":
-            # Hide password for trainee
+            # Hide password fields but maintain space
             self.password_label.pack_forget()
             self.password_entry.pack_forget()
         else:
-            # Show password for admin
+            # Show password fields in correct order
             self.password_label.pack(pady=(10, 5))
             self.password_entry.pack()
 

@@ -2,6 +2,7 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from datetime import datetime
+import sqlite3
 
 class AdminDashboard:
     def __init__(self, master, db_manager, logout_callback):
@@ -110,36 +111,73 @@ class AdminDashboard:
         modal.title(f"{mode.capitalize()} {self.current_tab.title()}")
         modal.geometry("400x400")
 
+        # Create a canvas with scrollbar for many fields
+        canvas = tk.Canvas(modal)
+        scrollbar = tk.Scrollbar(modal, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
         input_fields = {}
         fields = self.get_fields(self.current_tab)
-        print(f"Fields: {fields}")
 
         for idx, label in enumerate(fields):
-            lbl = tk.Label(modal, text=label.replace("_", " ").title())
+            if label == 'id':  # Skip ID field for add/update
+                continue
+            
+            lbl = tk.Label(scrollable_frame, text=label.replace("_", " ").title())
             lbl.pack(pady=5)
-            entry = tk.Entry(modal)
-            entry.pack(pady=5)
+
+            # Special handling for date fields
+            if label in ['hire_date', 'date_taken']:
+                entry = tk.Entry(scrollable_frame)
+                entry.insert(0, datetime.now().strftime('%Y-%m-%d'))
+                entry.pack(pady=5)
+                hint_label = tk.Label(scrollable_frame, text="Format: YYYY-MM-DD", font=("Helvetica", 8))
+                hint_label.pack()
+            else:
+                entry = tk.Entry(scrollable_frame)
+                entry.pack(pady=5)
+            
             input_fields[label] = entry
 
         if mode == "update":
             record = self.db_manager.get_record_by_id(self.current_tab, self.selected_record_id)
             if record:
+                # Skip the ID field when populating
                 for idx, col in enumerate(fields):
-                    input_fields[col].insert(0, record[idx])
+                    if col != 'id':  # Skip ID field
+                        value = record[fields.index(col)]
+                        if value is not None:  # Only set value if not None
+                            input_fields[col].delete(0, tk.END)
+                            input_fields[col].insert(0, str(value))
 
         def save():
             data = {key: entry.get().strip() for key, entry in input_fields.items()}
-            if mode == "add":
-                self.db_manager.insert_record(self.current_tab, data)
-                messagebox.showinfo("Success", "Record added successfully!")
-            elif mode == "update":
-                self.db_manager.update_record(self.current_tab, self.selected_record_id, data)
-                messagebox.showinfo("Success", "Record updated successfully!")
-            modal.destroy()
-            self.refresh_table()
+            try:
+                if mode == "add":
+                    self.db_manager.insert_record(self.current_tab, data)
+                    messagebox.showinfo("Success", "Record added successfully!")
+                elif mode == "update":
+                    self.db_manager.update_record(self.current_tab, self.selected_record_id, data)
+                    messagebox.showinfo("Success", "Record updated successfully!")
+                modal.destroy()
+                self.refresh_table()
+            except sqlite3.Error as e:
+                messagebox.showerror("Error", f"Database error: {str(e)}")
 
-        save_btn = tk.Button(modal, text="Save", command=save)
+        save_btn = tk.Button(scrollable_frame, text="Save", command=save)
         save_btn.pack(pady=20)
+
+        # Pack the canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        scrollbar.pack(side="right", fill="y")
 
     def add_record(self):
         self.open_modal(mode="add")
@@ -162,11 +200,11 @@ class AdminDashboard:
 
     def get_columns(self, tab_type):
         columns_map = {
-            "trainers": ["id", "name", "class_assigned", "contact_email"],
+            "trainers": ["id", "name", "class_assigned", "contact_email", "hire_date"],
             "batches": ["id", "batch_year", "num_trainees", "training_duration", "training_location", "trainer_id"],
-            "trainees": ["id", "name", "id_no", "uli", "batch_year", "trainer_name", "status", "batch_id"],
+            "trainees": ["id", "name", "id_no", "uli", "batch_year", "trainer_name", "exams_taken", "status", "remarks", "batch_id"],
             "exams": ["id", "title", "module_no", "num_items", "time_limit", "batch_id"],
-            "results": ["id", "trainee_id", "trainer_id", "exam_id", "competency", "date_taken"]
+            "results": ["id", "trainee_id", "trainer_id", "exam_id", "competency", "date_taken", "remarks"]
         }
         return columns_map.get(tab_type, [])
 
