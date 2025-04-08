@@ -4,6 +4,7 @@ THEME = {
         "primary": "#2d5a9e",
         "primary_hover": "#1f4172",
         "secondary": "#6c757d",
+        "secondary_hover": "#495057",  # Added this line
         "background": "#f5f5f5",
         "surface": "#ffffff",
         "text": "#1a1a1a",

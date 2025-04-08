@@ -354,7 +354,12 @@ class DatabaseManager:
         self.connect()
         try:
             self.cursor.execute("""
-                SELECT e.id, e.title, e.module_no, e.num_items, e.time_limit,
+                SELECT 
+                    e.id, 
+                    e.title, 
+                    e.module_no, 
+                    e.num_items, 
+                    e.time_limit,
                     CASE 
                         WHEN r.id IS NULL THEN 'Not Taken'
                         ELSE 'Completed'
@@ -364,10 +369,14 @@ class DatabaseManager:
                 WHERE e.batch_id = (
                     SELECT batch_id FROM trainees WHERE id = ?
                 )
+                AND e.status = 'Active'  -- Only show active exams
+                ORDER BY e.module_no, e.title
             """, (trainee_id, trainee_id))
             
             columns = ['id', 'title', 'module_no', 'num_items', 'time_limit', 'status']
             results = [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+            print("Columns: " + columns)
+            print("Resutls: " + results)
             return results
         except sqlite3.Error as e:
             print(f"Error getting available exams: {e}")
@@ -443,7 +452,10 @@ class DatabaseManager:
                 ORDER BY r.date_taken DESC
             """, (trainee_id,))
             columns = ['exam_title', 'score', 'total_items', 'percentage', 
-                      'date_taken', 'time_spent', 'status']
+                    'date_taken', 'time_spent', 'status']
             return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+        except sqlite3.Error as e:
+            print(f"Error getting trainee results: {e}")
+            return []
         finally:
             self.close()

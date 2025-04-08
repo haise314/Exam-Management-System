@@ -22,7 +22,7 @@ class ExamManagementApp:
         self.root.title("Exam Management System")
         self.root.geometry("800x600")
 
-        # Initialize database
+        # Initialize database 
         self.db_manager = DatabaseManager()
 
         # Create login frame
