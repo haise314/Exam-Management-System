@@ -28,7 +28,7 @@ class DatabaseManager:
         """Create all necessary tables for the exam management system"""
         self.connect()
         
-        # Trainer Table
+        # Trainers Table
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS trainers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,7 +39,7 @@ class DatabaseManager:
         )
         ''')
 
-        # Batch Table
+        # Batches Table
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS batches (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,33 +59,30 @@ class DatabaseManager:
             name TEXT NOT NULL,
             id_no TEXT UNIQUE NOT NULL,
             uli TEXT UNIQUE,
-            batch_year TEXT NOT NULL,
-            trainer_name TEXT,
+            batch_id INTEGER NOT NULL,
             exams_taken INTEGER DEFAULT 0,
             status TEXT CHECK (status IN ('Active', 'Inactive', 'Completed')),
             remarks TEXT,
-            batch_id INTEGER,
-            FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL
+            FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
         )
         ''')
 
-        self.cursor.execute("""
-        CREATE TABLE IF NOT EXISTS results (
+        # Exams Table
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS exams (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            trainee_id INTEGER NOT NULL,
-            exam_id INTEGER NOT NULL,
-            score INTEGER NOT NULL CHECK (score >= 0),
-            total_items INTEGER NOT NULL CHECK (total_items > 0),
-            percentage REAL GENERATED ALWAYS AS (CAST(score AS REAL) / total_items * 100) STORED,
-            date_taken DATETIME DEFAULT CURRENT_TIMESTAMP,
-            time_spent INTEGER CHECK (time_spent > 0),
-            status TEXT CHECK (status IN ('Passed', 'Failed')),
-            FOREIGN KEY (trainee_id) REFERENCES trainees(id) ON DELETE CASCADE,
-            FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
-            UNIQUE(trainee_id, exam_id)
+            title TEXT NOT NULL,
+            module_no TEXT NOT NULL,
+            num_items INTEGER NOT NULL CHECK (num_items > 0),
+            time_limit INTEGER NOT NULL CHECK (time_limit > 0),
+            batch_id INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive')),
+            FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
         )
-        """)
-        
+        ''')
+
+        # Questions Table
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS questions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,31 +98,22 @@ class DatabaseManager:
         )
         ''')
 
+        # Results Table
         self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS exams (
+        CREATE TABLE IF NOT EXISTS results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            module_no TEXT NOT NULL,
-            num_items INTEGER NOT NULL CHECK (num_items > 0),
-            time_limit INTEGER NOT NULL CHECK (time_limit > 0),
-            batch_id INTEGER,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            status TEXT DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive')),
-            FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
+            trainee_id INTEGER NOT NULL,
+            exam_id INTEGER NOT NULL,
+            score INTEGER NOT NULL CHECK (score >= 0),
+            total_items INTEGER NOT NULL CHECK (total_items > 0),
+            time_spent INTEGER CHECK (time_spent > 0),
+            date_taken DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status TEXT CHECK (status IN ('Passed', 'Failed')),
+            FOREIGN KEY (trainee_id) REFERENCES trainees(id) ON DELETE CASCADE,
+            FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+            UNIQUE(trainee_id, exam_id)
         )
         ''')
-
-        # Ensure the 'status' column exists in the 'exams' table
-        try:
-            self.cursor.execute("PRAGMA table_info(exams);")
-            columns = [col[1] for col in self.cursor.fetchall()]
-            if 'status' not in columns:
-                self.cursor.execute("""
-                    ALTER TABLE exams ADD COLUMN status TEXT DEFAULT 'Active' 
-                    CHECK (status IN ('Active', 'Inactive'))
-                """)
-        except sqlite3.Error as e:
-            print(f"Error ensuring 'status' column in 'exams' table: {e}")
 
         self.conn.commit()
         self.close()
@@ -337,72 +325,41 @@ class DatabaseManager:
             self.close()
 
     def submit_exam_result(self, trainee_id, exam_id, answers, time_spent):
-        """Submit exam results and calculate score"""
+        """Submit exam results and calculate score."""
         self.connect()
         try:
-            # Get correct answers and calculate score
             self.cursor.execute("""
-                SELECT id, correct_answer, points
-                FROM questions
-                WHERE exam_id = ?
+                SELECT id, correct_answer, points FROM questions WHERE exam_id = ?
             """, (exam_id,))
             questions = self.cursor.fetchall()
-            
             total_points = sum(q[2] for q in questions)
-            score = sum(
-                q[2] for q in questions 
-                if str(answers.get(q[0])) == q[1]
-            )
-            
-            # Insert result
+            score = sum(q[2] for q in questions if answers.get(q[0]) == q[1])
             self.cursor.execute("""
-                INSERT INTO results (
-                    trainee_id, exam_id, score, total_items,
-                    time_spent, date_taken, status
-                ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP,
-                    CASE WHEN CAST(? AS FLOAT) / ? >= 0.75 THEN 'Passed' ELSE 'Failed' END
-                )
+                INSERT INTO results (trainee_id, exam_id, score, total_items, time_spent, date_taken, status)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 
+                        CASE WHEN CAST(? AS FLOAT) / ? >= 0.75 THEN 'Passed' ELSE 'Failed' END)
             """, (trainee_id, exam_id, score, total_points, time_spent, score, total_points))
-            
             self.conn.commit()
-            
-            return {
-                'score': score,
-                'total_items': total_points,
-                'percentage': (score / total_points) * 100
-            }
+            return {'score': score, 'total_items': total_points, 'percentage': (score / total_points) * 100}
         finally:
             self.close()
 
     def get_available_exams(self, trainee_id):
-        """Get exams available for a trainee that haven't been taken yet"""
+        """Get exams available for a trainee that haven't been taken yet."""
         self.connect()
         try:
             self.cursor.execute("""
                 SELECT 
-                    e.id, 
-                    e.title, 
-                    e.module_no, 
-                    e.num_items, 
-                    e.time_limit,
-                    CASE 
-                        WHEN r.id IS NULL THEN 'Not Taken'
-                        ELSE 'Completed'
-                    END as status
+                    e.id, e.title, e.module_no, e.num_items, e.time_limit,
+                    CASE WHEN r.id IS NULL THEN 'Not Taken' ELSE 'Completed' END AS status
                 FROM exams e
                 LEFT JOIN results r ON e.id = r.exam_id AND r.trainee_id = ?
-                WHERE e.batch_id = (
-                    SELECT batch_id FROM trainees WHERE id = ?
-                )
-                AND e.status = 'Active'  -- Only show active exams
+                WHERE e.batch_id = (SELECT batch_id FROM trainees WHERE id = ?)
+                  AND e.status = 'Active'
                 ORDER BY e.module_no, e.title
             """, (trainee_id, trainee_id))
-            
             columns = ['id', 'title', 'module_no', 'num_items', 'time_limit', 'status']
-            results = [dict(zip(columns, row)) for row in self.cursor.fetchall()]
-            print("Columns: " + columns)
-            print("Resutls: " + results)
-            return results
+            return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
         except sqlite3.Error as e:
             print(f"Error getting available exams: {e}")
             return []

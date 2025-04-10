@@ -209,19 +209,10 @@ class AdminDashboard:
             style="Custom.Treeview"
         )
 
-        # Configure columns with better spacing
+        # Configure columns
         for col in columns:
-            table.heading(
-                col, 
-                text=col.replace('_', ' ').title(),
-                anchor="w"            # Left-align headers
-            )
-            table.column(
-                col, 
-                width=100,
-                minwidth=50,
-                anchor="w"            # Left-align content
-            )
+            table.heading(col, text=col.replace('_', ' ').title(), anchor="w")
+            table.column(col, width=100, minwidth=50, anchor="w")
 
         # Add a subtle border to the table frame
         table_frame.configure(
@@ -694,7 +685,7 @@ class AdminDashboard:
             "trainers": ["id", "name", "class_assigned", "contact_email", "hire_date"],
             "batches": ["id", "batch_year", "num_trainees", "training_duration", "training_location", "trainer_id"],
             "trainees": ["id", "name", "id_no", "uli", "batch_year", "trainer_name", "exams_taken", "status", "remarks", "batch_id"],
-            "exams": ["id", "title", "module_no", "num_items", "time_limit", "batch_id"],
+            "exams": ["id", "title", "module_no", "num_items", "time_limit", "batch_year", "status"],  # Updated
             "results": ["id", "trainee_id", "trainer_id", "exam_id", "competency", "date_taken", "remarks"]
         }
         return columns_map.get(tab_type, [])

@@ -345,36 +345,13 @@ class TraineeDashboard:
         
     def refresh_exams(self):
         try:
-            # Clear existing items
-            for item in self.exams_table.get_children():
-                self.exams_table.delete(item)
-                
-            # Get available exams for this trainee
-            available_exams = self.db_manager.get_available_exams(self.trainee_id)
-            
-            # Insert exams into table
-            for exam in available_exams:
-                values = (
-                    exam['id'],  # Hidden ID
-                    exam['title'],
-                    exam['module_no'],
-                    exam['num_items'],
-                    f"{exam['time_limit']} mins",
-                    exam['status']
-                )
-                self.exams_table.insert('', 'end', values=values)
-                
-            # Apply special styling for completed exams
-            for item in self.exams_table.get_children():
-                values = self.exams_table.item(item, 'values')
-                if values[5] == 'Completed':  # Status column
-                    self.exams_table.item(item, tags=('completed',))
-            
-            # Define tag configuration
-            self.exams_table.tag_configure('completed', background='#e0e0e0', foreground='#555555')
-            
+            self.exams_table.delete(*self.exams_table.get_children())
+            exams = self.db_manager.get_available_exams(self.trainee_id)
+            for exam in exams:
+                self.exams_table.insert('', 'end', values=(exam['id'], exam['title'], exam['module_no'], 
+                                                           exam['num_items'], f"{exam['time_limit']} mins", exam['status']))
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load exams: {str(e)}")    
+            messagebox.showerror("Error", f"Failed to load exams: {str(e)}")
 
     def refresh_results(self):
         try:
@@ -437,11 +414,8 @@ class TraineeDashboard:
         if not selected:
             messagebox.showerror("Error", "Please select an exam")
             return
-
-        # Get exam_id from the hidden ID column
-        values = self.exams_table.item(selected[0])['values']
-        exam_id = values[0]
-        status = values[5]  # Status value
+        exam_id = self.exams_table.item(selected[0])['values'][0]
+        status = self.exams_table.item(selected[0])['values'][5]  # Status value
         
         # Check if exam has already been taken
         if status == 'Completed':
