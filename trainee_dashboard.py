@@ -383,26 +383,43 @@ class TraineeDashboard:
                 self.results_table.delete(item)
                 
             # Get results for this trainee
-            results = self.db_manager.get_trainee_results(self.trainee_id)
+            conn = sqlite3.connect('exam_management.db')
+            cursor = conn.cursor()
+            
+            # Corrected query to fetch results
+            cursor.execute("""
+                SELECT e.title AS exam_title, 
+                       r.score, 
+                       r.total_items, 
+                       (CAST(r.score AS FLOAT) / r.total_items) * 100 AS percentage, 
+                       r.date_taken, 
+                       r.time_spent, 
+                       r.status
+                FROM results r
+                JOIN exams e ON r.exam_id = e.id
+                WHERE r.trainee_id = ?
+            """, (self.trainee_id,))
+            
+            results = cursor.fetchall()
             
             # Insert results into table
             for result in results:
                 # Format time spent as minutes:seconds
-                minutes = result['time_spent'] // 60
-                seconds = result['time_spent'] % 60
+                minutes = result[5] // 60
+                seconds = result[5] % 60
                 time_spent = f"{minutes}:{seconds:02d}"
                 
                 values = (
-                    result['exam_title'],
-                    f"{result['score']}/{result['total_items']}",
-                    f"{result['percentage']:.1f}%",
-                    result['date_taken'],
-                    time_spent,
-                    result['status']
+                    result[0],  # exam_title
+                    f"{result[1]}/{result[2]}",  # score/total_items
+                    f"{result[3]:.1f}%",  # percentage
+                    result[4],  # date_taken
+                    time_spent,  # time_spent
+                    result[6]  # status
                 )
                 
                 # Insert with appropriate tag based on pass/fail status
-                tag = 'passed' if result['status'] == 'Passed' else 'failed'
+                tag = 'passed' if result[6] == 'Passed' else 'failed'
                 self.results_table.insert('', 'end', values=values, tags=(tag,))
             
             # Configure tag appearances
@@ -411,6 +428,9 @@ class TraineeDashboard:
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load results: {str(e)}")
+        finally:
+            if conn:
+                conn.close()
 
     def take_exam(self):
         selected = self.exams_table.selection()

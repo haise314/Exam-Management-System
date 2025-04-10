@@ -115,6 +115,18 @@ class DatabaseManager:
         )
         ''')
 
+        # Ensure the 'status' column exists in the 'exams' table
+        try:
+            self.cursor.execute("PRAGMA table_info(exams);")
+            columns = [col[1] for col in self.cursor.fetchall()]
+            if 'status' not in columns:
+                self.cursor.execute("""
+                    ALTER TABLE exams ADD COLUMN status TEXT DEFAULT 'Active' 
+                    CHECK (status IN ('Active', 'Inactive'))
+                """)
+        except sqlite3.Error as e:
+            print(f"Error ensuring 'status' column in 'exams' table: {e}")
+
         self.conn.commit()
         self.close()
 
@@ -249,7 +261,20 @@ class DatabaseManager:
         """Retrieve a single record by its ID"""
         self.connect()
         try:
-            self.cursor.execute(f"SELECT * FROM {table_name} WHERE id = ?", (record_id,))
+            # Whitelist of allowed table names
+            allowed_tables = {'exams', 'trainers', 'batches', 'trainees', 'results', 'questions'}
+            if table_name not in allowed_tables:
+                raise ValueError(f"Invalid table name: {table_name}")
+            
+            if table_name == 'exams':
+                # Explicitly specify the column order for exams table
+                self.cursor.execute("""
+                    SELECT id, title, module_no, num_items, time_limit, 
+                        batch_id, created_at, status 
+                    FROM exams WHERE id = ?
+                """, (record_id,))
+            else:
+                self.cursor.execute(f"SELECT * FROM {table_name} WHERE id = ?", (record_id,))
             return self.cursor.fetchone()
         except sqlite3.Error as e:
             print(f"Error retrieving record from {table_name}: {e}")

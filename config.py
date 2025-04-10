@@ -3,6 +3,7 @@ THEME = {
     "colors": {
         "primary": "#2d5a9e",
         "primary_hover": "#1f4172",
+        "primary_light": "#80bdff",  # Add this line
         "secondary": "#6c757d",
         "secondary_hover": "#495057",  # Added this line
         "background": "#f5f5f5",
@@ -28,4 +29,4 @@ BUTTON_COLORS = {
     "secondary": ("#6c757d", "#495057"),
     "danger": ("#dc3545", "#c82333"),
     "success": ("#28a745", "#218838")
-} 
+}
