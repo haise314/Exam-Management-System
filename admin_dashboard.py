@@ -83,6 +83,8 @@ class AdminDashboard:
         # Update current tab
         self.current_tab = tab_name.lower()
         self.selected_record_id = None
+        
+        print("Current Tab:" + self.current_tab)
 
         # Update nav button states
         for btn in self.nav_buttons:
@@ -258,10 +260,11 @@ class AdminDashboard:
             return
         values = table.item(selected_item[0])['values']
         self.selected_record_id = values[0]
+        print(f"Selected Record ID: {self.selected_record_id}")
         
         # If in exams tab, show the exam details
         if self.current_tab == "exams":
-            self.open_exam_modal(mode="update", exam_id=self.selected_record_id)
+            self.open_exam_details_modal(mode="update")
 
     def refresh_table(self):
         table = getattr(self, f"{self.current_tab}_table")
@@ -311,16 +314,24 @@ class AdminDashboard:
         # Populate fields if updating
         if mode == "update" and self.selected_record_id:
             record = self.db_manager.get_record_by_id('exams', self.selected_record_id)
+            print(f"RECORD: {record}")
             if record:
-                field_values = dict(zip(fields, record[1:]))  # Skip ID
-                for field, value in field_values.items():
-                    if value is not None:
-                        input_fields[field].insert(0, str(value))
+                columns = ['id', 'title', 'module_no', 'num_items', 'time_limit', 'batch_id', 'created_at', 'status']
+                record_dict = dict(zip(columns, record))
+                print(f"Columns: {columns}")
+                print(f"Record_dict: {record_dict}")
+                # Update each field with its corresponding value
+                for field in fields:
+                    if field in record_dict and record_dict[field] is not None:
+                        input_fields[field].delete(0, 'end')
+                        input_fields[field].insert(0, str(record_dict[field]))
+                            
 
         def save():
             try:
                 data = {field: entry.get().strip() 
                        for field, entry in input_fields.items()}
+                print(f"Saved Data: {data}")
                 
                 if mode == "add":
                     self.db_manager.insert_record('exams', data)

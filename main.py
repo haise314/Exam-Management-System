@@ -20,7 +20,19 @@ class ExamManagementApp:
         # Create main window
         self.root = ctk.CTk()
         self.root.title("Exam Management System")
-        self.root.geometry("800x600")
+        self.root.geometry("1280x720")
+        
+        # Set the starting position of the window to the center of the screen
+        window_width = 1280
+        window_height = 720
+
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+
+        position_top = int(screen_height / 2 - window_height / 2)
+        position_right = int(screen_width / 2 - window_width / 2)
+
+        self.root.geometry(f"{window_width}x{window_height}+{position_right}+{position_top}")
 
         # Initialize database 
         self.db_manager = DatabaseManager()
