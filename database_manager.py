@@ -27,6 +27,7 @@ class DatabaseManager:
     def create_tables(self):
         """Create all necessary tables for the exam management system"""
         self.connect()
+        print("Creating tables...")  # Debug print
         
         # Trainers Table
         self.cursor.execute('''
@@ -104,7 +105,7 @@ class DatabaseManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             trainee_id INTEGER NOT NULL,
             exam_id INTEGER NOT NULL,
-            score INTEGER NOT NULL CHECK (score >= 0),
+            score INTEGER NOT NULL CHECK (score >= 0), 
             total_items INTEGER NOT NULL CHECK (total_items > 0),
             time_spent INTEGER CHECK (time_spent > 0),
             date_taken DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -334,6 +335,7 @@ class DatabaseManager:
             questions = self.cursor.fetchall()
             total_points = sum(q[2] for q in questions)
             score = sum(q[2] for q in questions if answers.get(q[0]) == q[1])
+            print(f"Inserting result with score: {score}")  # Debug print
             self.cursor.execute("""
                 INSERT INTO results (trainee_id, exam_id, score, total_items, time_spent, date_taken, status)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 

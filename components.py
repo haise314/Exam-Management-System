@@ -17,6 +17,13 @@ class BaseModal(ctk.CTkToplevel):
         )
         self.container.pack(expand=True, fill="both", padx=20, pady=20)
         
+        # Add a scrollable frame
+        self.scrollable_frame = ctk.CTkScrollableFrame(
+            self.container,
+            fg_color="transparent"
+        )
+        self.scrollable_frame.pack(expand=True, fill="both", padx=20, pady=20)
+        
         # Update title styling
         self.title_label = ctk.CTkLabel(
             self.container,
@@ -39,4 +46,4 @@ class BaseModal(ctk.CTkToplevel):
                 fg_color=colors[0] if colors else THEME["colors"]["primary"],
                 hover_color=colors[1] if colors else THEME["colors"]["primary_hover"],
                 text_color="white"
-            ).pack(side="left", padx=5) 
+            ).pack(side="left", padx=5)

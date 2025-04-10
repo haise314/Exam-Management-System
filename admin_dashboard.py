@@ -99,6 +99,19 @@ class AdminDashboard:
         # Refresh table data immediately after creation
         self.refresh_table()
 
+    @staticmethod
+    def center_window(window, default_width=None, default_height=None):
+        window.update_idletasks()  # Ensure the window size is updated
+        width = default_width or window.winfo_width()
+        height = default_height or window.winfo_height()
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+
+        window.geometry(f"{width}x{height}+{x}+{y}")    
+    
     def create_tab_content(self, tab, tab_type):
         # Main container frame
         container = ctk.CTkFrame(tab)
@@ -241,7 +254,7 @@ class AdminDashboard:
         y_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         x_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-        table.bind('<ButtonRelease-1>', self.on_table_select)
+        table.bind('<Double-1>', self.on_table_select)
         setattr(self, f"{tab_type}_table", table)
 
     def on_table_select(self, event):
@@ -268,8 +281,11 @@ class AdminDashboard:
         modal = BaseModal(
             self.master,
             f"{mode.capitalize()} Exam Details",
-            "400x500"
+            "400x500"  # Default size for exam details modal
         )
+
+        # Center the modal with default size
+        AdminDashboard.center_window(modal, default_width=400, default_height=500)
 
         # Create form frame
         form_frame = ctk.CTkFrame(modal.container, fg_color="transparent")
@@ -349,8 +365,11 @@ class AdminDashboard:
         modal = BaseModal(
             self.master,
             "Manage Exam Questions",
-            "800x600"
+            "800x600"  # Default size for questions modal
         )
+
+        # Center the modal with default size
+        AdminDashboard.center_window(modal, default_width=800, default_height=600)
 
         # Questions list frame with custom styling
         questions_frame = ctk.CTkScrollableFrame(
@@ -547,15 +566,14 @@ class AdminDashboard:
         save_button.pack(pady=10)
 
     def open_modal(self, mode="add"):
-        if self.current_tab == "exams":
-            self.open_exam_details_modal(mode, self.selected_record_id if mode == "update" else None)
-            return
-
         modal = BaseModal(
             self.master,
             f"{mode.capitalize()} {self.current_tab.title()}",
-            "500x600"
+            "500x600"  # Default size for generic modals
         )
+
+        # Center the modal with default size
+        AdminDashboard.center_window(modal, default_width=500, default_height=600)
 
         # Create scrollable form frame
         form_frame = ctk.CTkScrollableFrame(
@@ -729,3 +747,5 @@ class AdminDashboard:
     def filter_results(self, batch_id=None):
         results = self.db_manager.get_results(batch_id)
         self.populate_results_table(results)
+
+

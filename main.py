@@ -108,13 +108,16 @@ class ExamManagementApp:
     def login(self):
         username = self.username_entry.get()
         login_type = self.login_type.get()
+
         if login_type == "Admin":
+            # Validate admin login (you'd typically have a more secure method)
             password = self.password_entry.get()
             if username == "admin" and password == "admin123":
                 self.open_admin_dashboard()
             else:
                 self.show_error("Invalid admin credentials")
         else:
+            # Trainee login (validate against database)
             if self.validate_trainee_login(username):
                 self.open_trainee_dashboard(username)
             else:

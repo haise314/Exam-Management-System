@@ -363,7 +363,6 @@ class TraineeDashboard:
             conn = sqlite3.connect('exam_management.db')
             cursor = conn.cursor()
             
-            # Corrected query to fetch results
             cursor.execute("""
                 SELECT e.title AS exam_title, 
                        r.score, 
