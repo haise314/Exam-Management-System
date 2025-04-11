@@ -5,7 +5,6 @@ class ExamManager:
     def __init__(self, db_name='exam_management.db'):
         self.db_name = db_name
         self.connect()
-        self.create_tables()
 
     def connect(self):
         self.conn = sqlite3.connect(self.db_name)
@@ -14,42 +13,6 @@ class ExamManager:
     def close(self):
         if self.conn:
             self.conn.close()
-
-    def create_tables(self):
-        """Ensures all necessary tables exist."""
-        self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS exams (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            module_no TEXT,
-            num_items INTEGER,
-            time_limit INTEGER,
-            batch_id INTEGER,
-            FOREIGN KEY (batch_id) REFERENCES batches(id)
-        )
-        ''')
-        self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS questions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            exam_id INTEGER,
-            question_text TEXT NOT NULL,
-            correct_answer TEXT NOT NULL,
-            points INTEGER DEFAULT 1,
-            FOREIGN KEY (exam_id) REFERENCES exams(id)
-        )
-        ''')
-        self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            trainee_id INTEGER,
-            exam_id INTEGER,
-            score REAL,
-            date_taken DATETIME,
-            FOREIGN KEY (trainee_id) REFERENCES trainees(id),
-            FOREIGN KEY (exam_id) REFERENCES exams(id)
-        )
-        ''')
-        self.conn.commit()
 
     def add_exam(self, title, module_no, num_items, time_limit, batch_id):
         """Creates a new exam."""

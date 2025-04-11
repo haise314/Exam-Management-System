@@ -274,241 +274,530 @@ class AdminDashboard:
         table = getattr(self, f"{self.current_tab}_table")
         table.delete(*table.get_children())
         records = self.db_manager.get_all_records(self.current_tab)
+
+        # Ensure column order matches the database schema
+        column_order = self.get_columns(self.current_tab)
         for record in records:
-            table.insert('', 'end', values=record)
+            # Reorder record fields to match column order
+            reordered_record = [record[column_order.index(col)] for col in column_order]
+            table.insert('', 'end', values=reordered_record)
 
     def open_exam_details_modal(self, mode="add"):
         modal = BaseModal(
             self.master,
             f"{mode.capitalize()} Exam Details",
-            "400x500"  # Default size for exam details modal
+            "500x550"  # Slightly larger size
         )
 
-        # Center the modal with default size
-        AdminDashboard.center_window(modal, default_width=400, default_height=500)
+        # Create main container frame
+        main_container = ctk.CTkFrame(modal.scrollable_frame, fg_color="transparent")
+        main_container.pack(expand=True, fill="both", padx=10, pady=10)
 
-        # Create form frame
-        form_frame = ctk.CTkFrame(modal.container, fg_color="transparent")
-        form_frame.pack(expand=True, fill="both")
+        # Create header section with icon or image if in update mode
+        if mode == "update":
+            header = ctk.CTkFrame(
+                main_container,
+                fg_color="#f0f5ff",  # Light blue background
+                corner_radius=8,
+                border_width=1,
+                border_color="#d0d9e8"
+            )
+            header.pack(fill="x", pady=(0, 15))
+            
+            header_text = ctk.CTkLabel(
+                header,
+                text="Edit Exam Information",
+                font=("Helvetica", 14, "bold"),
+                text_color="#2d5a9e"
+            )
+            header_text.pack(pady=10)
 
-        # Input fields
-        fields = ["title", "module_no", "num_items", "time_limit", "batch_id"]
+        # Create form frame with better styling
+        form_frame = ctk.CTkFrame(main_container, fg_color="transparent")
+        form_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Define input fields with better labels and structure
+        fields = [
+            {"name": "title", "label": "Exam Title", "placeholder": "Enter the exam title..."},
+            {"name": "module_no", "label": "Module Number", "placeholder": "Enter module number..."},
+            {"name": "num_items", "label": "Number of Items", "placeholder": "Enter total question count..."},
+            {"name": "time_limit", "label": "Time Limit (minutes)", "placeholder": "Enter exam time limit..."},
+            {"name": "batch_id", "label": "Batch ID", "placeholder": "Enter batch ID..."}
+        ]
+        
         input_fields = {}
 
         for field in fields:
-            field_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-            field_frame.pack(fill="x", pady=5)
-
+            # Create field container
+            field_container = ctk.CTkFrame(form_frame, fg_color="transparent")
+            field_container.pack(fill="x", pady=10)
+            
+            # Add label with better styling
             label = ctk.CTkLabel(
-                field_frame,
-                text=field.replace('_', ' ').title() + ":",
-                width=100
+                field_container,
+                text=field["label"],
+                font=("Helvetica", 12, "bold"),
+                text_color="#333333"
             )
-            label.pack(side="left", padx=5)
-
+            label.pack(anchor="w", padx=5, pady=(0, 5))
+            
+            # Add input with better styling
             entry = ctk.CTkEntry(
-                field_frame,
-                placeholder_text=f"Enter {field.replace('_', ' ')}...",
+                field_container,
+                placeholder_text=field["placeholder"],
+                height=35,
                 fg_color="#ffffff",
-                border_color="#2d5a9e",
+                border_color="#c0c0c0",
                 border_width=1,
-                text_color="#1a1a1a",
-                placeholder_text_color="#999999"
+                text_color="#333333",
+                corner_radius=4
             )
-            entry.pack(side="left", expand=True, fill="x", padx=5)
-            input_fields[field] = entry
+            entry.pack(fill="x", padx=5)
+            
+            # Store reference
+            input_fields[field["name"]] = entry
+
+        # Add a status toggle if in update mode
+        status_var = tk.StringVar(value="active")
+        
+        if mode == "update":
+            status_container = ctk.CTkFrame(form_frame, fg_color="transparent")
+            status_container.pack(fill="x", pady=10)
+            
+            status_label = ctk.CTkLabel(
+                status_container,
+                text="Exam Status",
+                font=("Helvetica", 12, "bold"),
+                text_color="#333333"
+            )
+            status_label.pack(anchor="w", padx=5, pady=(0, 5))
+            
+            status_frame = ctk.CTkFrame(status_container, fg_color="transparent")
+            status_frame.pack(fill="x", padx=5)
+            
+            active_radio = ctk.CTkRadioButton(
+                status_frame,
+                text="Active",
+                variable=status_var,
+                value="active",
+                fg_color="#2d5a9e",
+                font=("Helvetica", 11)
+            )
+            active_radio.pack(side="left", padx=(0, 20))
+            
+            inactive_radio = ctk.CTkRadioButton(
+                status_frame,
+                text="Inactive",
+                variable=status_var,
+                value="inactive",
+                fg_color="#2d5a9e",
+                font=("Helvetica", 11)
+            )
+            inactive_radio.pack(side="left")
 
         # Populate fields if updating
         if mode == "update" and self.selected_record_id:
             record = self.db_manager.get_record_by_id('exams', self.selected_record_id)
-            print(f"RECORD: {record}")
             if record:
                 columns = ['id', 'title', 'module_no', 'num_items', 'time_limit', 'batch_id', 'created_at', 'status']
                 record_dict = dict(zip(columns, record))
-                print(f"Columns: {columns}")
-                print(f"Record_dict: {record_dict}")
+                
                 # Update each field with its corresponding value
-                for field in fields:
-                    if field in record_dict and record_dict[field] is not None:
-                        input_fields[field].delete(0, 'end')
-                        input_fields[field].insert(0, str(record_dict[field]))
-                            
+                for field_name, entry in input_fields.items():
+                    if field_name in record_dict and record_dict[field_name] is not None:
+                        entry.delete(0, 'end')
+                        entry.insert(0, str(record_dict[field_name]))
+                
+                # Set status if available
+                if 'status' in record_dict and record_dict['status']:
+                    status_var.set(record_dict['status'])
+
+        # Action button container
+        action_container = ctk.CTkFrame(main_container, fg_color="transparent")
+        action_container.pack(fill="x", pady=15)
 
         def save():
             try:
-                data = {field: entry.get().strip() 
-                       for field, entry in input_fields.items()}
-                print(f"Saved Data: {data}")
+                # Validate inputs
+                for field_name, entry in input_fields.items():
+                    if not entry.get().strip():
+                        messagebox.showerror("Error", f"{field_name.replace('_', ' ').title()} cannot be empty")
+                        return
+                
+                data = {field_name: entry.get().strip() 
+                       for field_name, entry in input_fields.items()}
+                
+                # Add status if in update mode
+                if mode == "update":
+                    data['status'] = status_var.get()
                 
                 if mode == "add":
                     self.db_manager.insert_record('exams', data)
+                    result_message = "Exam created successfully!"
                 else:
                     self.db_manager.update_record('exams', self.selected_record_id, data)
+                    result_message = "Exam updated successfully!"
                 
                 modal.destroy()
                 self.refresh_table()
-                messagebox.showinfo("Success", f"Exam details {mode}d successfully!")
+                
+                messagebox.showinfo("Success", result_message)
+                
+                # If creating a new exam, offer to add questions
+                if mode == "add" and messagebox.askyesno("Add Questions", "Would you like to add questions to this exam now?"):
+                    # Get the id of the newly created exam
+                    exams = self.db_manager.get_all_records('exams')
+                    for exam in exams:
+                        if exam[1] == data['title']:  # Match by title
+                            self.selected_record_id = exam[0]
+                            self.open_questions_modal()
+                            break
+                    
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
-        # Create buttons
-        modal.create_button_group([
-            ("Save", save, ("#1f538d", "#164279")),
-            ("Cancel", modal.destroy, ("gray", "darkgray"))
-        ])
+        # Create action buttons
+        save_btn = ctk.CTkButton(
+            action_container,
+            text="Save Exam",
+            command=save,
+            fg_color="#2d5a9e",
+            hover_color="#1f4682",
+            height=36,
+            font=("Helvetica", 13, "bold")
+        )
+        save_btn.pack(side="right", padx=5)
+        
+        cancel_btn = ctk.CTkButton(
+            action_container,
+            text="Cancel",
+            command=modal.destroy,
+            fg_color="#9e9e9e",  # Gray for cancel
+            hover_color="#757575",
+            height=36,
+            font=("Helvetica", 13)
+        )
+        cancel_btn.pack(side="right", padx=5)
+        
+        # If in update mode, add a button to manage questions
+        if mode == "update":
+            questions_btn = ctk.CTkButton(
+                action_container,
+                text="Manage Questions",
+                command=self.open_questions_modal,
+                fg_color="#ff9800",  # Orange for manage questions
+                hover_color="#f57c00",
+                height=36,
+                font=("Helvetica", 13)
+            )
+            questions_btn.pack(side="left", padx=5)
 
     def open_questions_modal(self):
         if not self.selected_record_id:
             messagebox.showerror("Error", "Please select an exam first")
             return
 
+        # Get exam details for title
+        exam_details = self.db_manager.get_record_by_id('exams', self.selected_record_id)
+        exam_title = exam_details[1] if exam_details else "Unknown Exam"
+
         modal = BaseModal(
             self.master,
-            "Manage Exam Questions",
-            "800x600"  # Default size for questions modal
+            f"Manage Questions: {exam_title}",
+            "900x700"  # Increased size for better visibility
         )
 
-        # Center the modal with default size
-        AdminDashboard.center_window(modal, default_width=800, default_height=600)
+        # Main container with better spacing
+        main_container = ctk.CTkFrame(modal.scrollable_frame, fg_color="transparent")
+        main_container.pack(expand=True, fill="both", padx=10, pady=10)
 
-        # Questions list frame with custom styling
-        questions_frame = ctk.CTkScrollableFrame(
-            modal.container,
-            fg_color="#333333",
-            corner_radius=6
+        # Create info panel at the top
+        info_panel = ctk.CTkFrame(
+            main_container,
+            fg_color="#f0f5ff",  # Light blue background
+            corner_radius=8,
+            border_width=1,
+            border_color="#d0d9e8"
         )
-        questions_frame.pack(expand=True, fill="both", pady=(0, 10))
+        info_panel.pack(fill="x", padx=5, pady=(0, 15))
+        
+        # Add exam info in the panel
+        if exam_details:
+            exam_info_text = f"Module {exam_details[2]} • {exam_details[3]} Items • {exam_details[4]} Minutes"
+            
+            info_title = ctk.CTkLabel(
+                info_panel,
+                text=exam_title,
+                font=("Helvetica", 16, "bold"),
+                text_color="#1a1a1a"
+            )
+            info_title.pack(anchor="w", padx=15, pady=(10, 5))
+            
+            info_details = ctk.CTkLabel(
+                info_panel,
+                text=exam_info_text,
+                font=("Helvetica", 12),
+                text_color="#555555"
+            )
+            info_details.pack(anchor="w", padx=15, pady=(0, 10))
 
+        # Create toolbar with action buttons
+        toolbar = ctk.CTkFrame(main_container, fg_color="transparent")
+        toolbar.pack(fill="x", padx=5, pady=(0, 10))
+        
+        # Questions count display
+        question_counter = ctk.CTkLabel(
+            toolbar,
+            text="0 Questions",
+            font=("Helvetica", 12, "bold"),
+            text_color="#555555"
+        )
+        question_counter.pack(side="left", padx=5)
+        
+        # Add question button
+        add_btn = ctk.CTkButton(
+            toolbar,
+            text="+ Add Question",
+            font=("Helvetica", 12),
+            fg_color="#2d5a9e",
+            hover_color="#1f4682",
+            height=32
+        )
+        add_btn.pack(side="right", padx=5)
+        
+        # Create scrollable container for questions
+        questions_scroll = ctk.CTkScrollableFrame(
+            main_container,
+            fg_color="#ffffff",
+            corner_radius=8,
+            border_width=1,
+            border_color="#e0e0e0"
+        )
+        questions_scroll.pack(expand=True, fill="both", padx=5, pady=(0, 15))
+        
+        # Questions list to track all questions
         questions_list = []
-
+        
+        # Function to update the question counter
+        def update_counter():
+            question_counter.configure(text=f"{len(questions_list)} Questions")
+        
         def add_question(question_data=None):
-            question_frame = ctk.CTkFrame(
-                questions_frame,
-                fg_color="#ffffff",
-                corner_radius=6,
+            # Create question container with better styling
+            q_container = ctk.CTkFrame(
+                questions_scroll,
+                fg_color="#f8f9fa",
+                corner_radius=8,
                 border_width=1,
                 border_color="#e0e0e0"
             )
-            question_frame.pack(fill="x", padx=5, pady=5)
-
-            # Question number
+            q_container.pack(fill="x", padx=10, pady=8, anchor="n")
+            
+            # Question header with number and controls
+            header = ctk.CTkFrame(q_container, fg_color="transparent")
+            header.pack(fill="x", padx=10, pady=(10, 5))
+            
+            # Question number indicator
             q_num = len(questions_list) + 1
             q_label = ctk.CTkLabel(
-                question_frame,
+                header,
                 text=f"Question {q_num}",
-                font=("Helvetica", 12, "bold"),
-                text_color="#1a1a1a"
+                font=("Helvetica", 14, "bold"),
+                text_color="#2d5a9e"
             )
-            q_label.pack(pady=5)
-
-            # Question text
-            q_text = ctk.CTkTextbox(
-                question_frame,
-                height=60,
-                fg_color="#ffffff",
-                border_color="#2d5a9e",
-                border_width=1,
-                text_color="#1a1a1a"
-            )
-            q_text.pack(fill="x", padx=5, pady=5)
-
-            # Options frame
-            options_frame = ctk.CTkFrame(question_frame, fg_color="transparent")
-            options_frame.pack(fill="x", padx=5)
-
-            options = []
-            for i in range(4):
-                option_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
-                option_frame.pack(fill="x", pady=2)
-                
-                option_label = ctk.CTkLabel(
-                    option_frame,
-                    text=f"Option {chr(65+i)}:",
-                    width=70,
-                    text_color="#1a1a1a"
-                )
-                option_label.pack(side="left", padx=5)
-                
-                option_entry = ctk.CTkEntry(
-                    option_frame,
-                    fg_color="#ffffff",
-                    border_color="#2d5a9e",
-                    border_width=1,
-                    text_color="#1a1a1a"
-                )
-                option_entry.pack(side="left", expand=True, fill="x", padx=5)
-                
-                options.append(option_entry)
-
-            # Correct answer and points frame
-            settings_frame = ctk.CTkFrame(question_frame, fg_color="transparent")
-            settings_frame.pack(fill="x", padx=5, pady=5)
-
-            # Correct answer dropdown
-            correct_label = ctk.CTkLabel(settings_frame, text="Correct Answer:")
-            correct_label.pack(side="left", padx=5)
+            q_label.pack(side="left")
             
-            correct_var = tk.StringVar(value="A")
-            correct_menu = ctk.CTkOptionMenu(
-                settings_frame,
-                values=["A", "B", "C", "D"],
-                variable=correct_var,
-                fg_color="#ffffff",
-                text_color="#1a1a1a"
-            )
-            correct_menu.pack(side="left", padx=5)
-
-            # Points entry
-            points_label = ctk.CTkLabel(settings_frame, text="Points:")
-            points_label.pack(side="left", padx=5)
+            # Controls
+            controls = ctk.CTkFrame(header, fg_color="transparent")
+            controls.pack(side="right")
             
-            points_entry = ctk.CTkEntry(settings_frame, width=50, fg_color="#ffffff", text_color="#1a1a1a")
-            points_entry.insert(0, "1")
-            points_entry.pack(side="left", padx=5)
-
             # Delete button
             delete_btn = ctk.CTkButton(
-                question_frame,
-                text="Delete Question",
-                command=lambda: remove_question(question_frame),
-                fg_color=BUTTON_COLORS["danger"][0],
-                hover_color=BUTTON_COLORS["danger"][1],
-                text_color="white"
+                controls,
+                text="Delete",
+                font=("Helvetica", 12),
+                fg_color="#ff5252",
+                hover_color="#e63939",
+                width=80,
+                height=28
             )
-            delete_btn.pack(pady=5)
-
+            delete_btn.pack(side="right", padx=5)
+            
+            # Question content frame
+            content = ctk.CTkFrame(q_container, fg_color="transparent")
+            content.pack(fill="x", padx=15, pady=5)
+            
+            # Question text entry with label
+            text_label = ctk.CTkLabel(
+                content,
+                text="Question Text:",
+                font=("Helvetica", 12, "bold"),
+                text_color="#333333"
+            )
+            text_label.pack(anchor="w", pady=(5, 0))
+            
+            q_text = ctk.CTkTextbox(
+                content,
+                height=70,
+                fg_color="#ffffff",
+                border_color="#c0c0c0",
+                border_width=1,
+                text_color="#333333",
+                corner_radius=4
+            )
+            q_text.pack(fill="x", pady=5)
+            
+            # Options section
+            options_label = ctk.CTkLabel(
+                content,
+                text="Answer Options:",
+                font=("Helvetica", 12, "bold"),
+                text_color="#333333"
+            )
+            options_label.pack(anchor="w", pady=(10, 5))
+            
+            # Options container
+            options_container = ctk.CTkFrame(content, fg_color="transparent")
+            options_container.pack(fill="x", pady=5)
+            
+            # Create 2x2 grid for options
+            options_grid = [ctk.CTkFrame(options_container, fg_color="transparent") for _ in range(2)]
+            for i, row in enumerate(options_grid):
+                row.pack(fill="x", pady=3)
+            
+            options = []
+            option_frames = []
+            
+            for i in range(4):
+                row_idx = i // 2
+                frame = ctk.CTkFrame(
+                    options_grid[row_idx],
+                    fg_color="#ffffff",
+                    corner_radius=6,
+                    border_width=1,
+                    border_color="#e0e0e0"
+                )
+                frame.pack(side="left" if i % 2 == 0 else "right", expand=True, fill="x", padx=5)
+                option_frames.append(frame)
+                
+                option_header = ctk.CTkFrame(frame, fg_color="transparent")
+                option_header.pack(fill="x", padx=8, pady=(8, 0))
+                
+                option_letter = ctk.CTkLabel(
+                    option_header,
+                    text=f"Option {chr(65+i)}",
+                    font=("Helvetica", 12, "bold"),
+                    text_color="#555555",
+                    width=70
+                )
+                option_letter.pack(side="left")
+                
+                # Add radio button for correct answer
+                correct_var = tk.StringVar(value="A" if i == 0 and not question_data else "")
+                
+                correct_radio = ctk.CTkRadioButton(
+                    option_header,
+                    text="Correct",
+                    variable=correct_var,
+                    value=chr(65+i),
+                    font=("Helvetica", 11),
+                    fg_color="#2d5a9e",
+                    text_color="#333333"
+                )
+                correct_radio.pack(side="right", padx=8)
+                
+                option_entry = ctk.CTkEntry(
+                    frame,
+                    fg_color="#ffffff",
+                    border_color="#e0e0e0",
+                    border_width=1,
+                    text_color="#333333",
+                    placeholder_text=f"Enter option {chr(65+i)}..."
+                )
+                option_entry.pack(fill="x", padx=8, pady=(5, 8), ipady=3)
+                
+                options.append({
+                    'entry': option_entry,
+                    'radio': correct_radio,
+                    'var': correct_var
+                })
+            
+            # Points / additional settings row
+            settings_row = ctk.CTkFrame(content, fg_color="transparent")
+            settings_row.pack(fill="x", pady=(10, 5))
+            
+            points_label = ctk.CTkLabel(
+                settings_row,
+                text="Points:",
+                font=("Helvetica", 12),
+                text_color="#333333"
+            )
+            points_label.pack(side="left", padx=(0, 5))
+            
+            points_entry = ctk.CTkEntry(
+                settings_row,
+                width=60,
+                fg_color="#ffffff",
+                border_color="#c0c0c0",
+                text_color="#333333"
+            )
+            points_entry.insert(0, "1")
+            points_entry.pack(side="left")
+            
+            # Store question data
             question_dict = {
-                'frame': question_frame,
+                'frame': q_container,
                 'text': q_text,
                 'options': options,
-                'correct': correct_var,
                 'points': points_entry,
-                'id': question_data['id'] if question_data else None
+                'id': question_data['id'] if question_data else None,
+                'number_label': q_label
             }
             questions_list.append(question_dict)
-
-            # If question_data provided, populate fields
+            
+            # Update question counter
+            update_counter()
+            
+            # Connect delete button action
+            delete_btn.configure(command=lambda: remove_question(q_container))
+            
+            # If question data provided, populate fields
             if question_data:
                 q_text.insert('1.0', question_data['question_text'])
+                
+                # Parse options data
                 options_data = question_data['correct_answer'].split('|')
-                for i, option in enumerate(options_data):
-                    answer, text = option.split(':')
-                    options[i].insert(0, text)
-                    if answer.startswith('*'):
-                        correct_var.set(answer[1])
+                for i, option_data in enumerate(options_data):
+                    if i < len(options):
+                        answer, text = option_data.split(':')
+                        options[i]['entry'].insert(0, text)
+                        if answer.startswith('*'):
+                            options[i]['var'].set(answer[1])
+                
+                # Set points
                 points_entry.delete(0, 'end')
                 points_entry.insert(0, str(question_data['points']))
-
+        
         def remove_question(frame):
+            # Find and remove the question
             question_dict = next(q for q in questions_list if q['frame'] == frame)
             if question_dict['id']:  # If question exists in database
                 self.db_manager.delete_record('questions', question_dict['id'])
+            
+            # Remove from UI
             frame.destroy()
             questions_list.remove(question_dict)
+            
             # Renumber remaining questions
             for i, q in enumerate(questions_list, 1):
-                q['frame'].winfo_children()[0].configure(text=f"Question {i}")
-
+                q['number_label'].configure(text=f"Question {i}")
+            
+            # Update counter
+            update_counter()
+        
+        # Connect add button
+        add_btn.configure(command=lambda: add_question())
+        
         # Load existing questions
         existing_questions = self.db_manager.get_exam_questions(self.selected_record_id)
         for question in existing_questions:
@@ -518,52 +807,105 @@ class AdminDashboard:
                 'correct_answer': question[2],
                 'points': question[3]
             })
-
-        # Add question button
-        add_button = ctk.CTkButton(
-            modal.container,
-            text="Add New Question",
-            command=lambda: add_question()
+        
+        # If no questions, add one blank question to start
+        if not questions_list:
+            add_question()
+        
+        # Bottom action bar with save button
+        action_bar = ctk.CTkFrame(main_container, fg_color="transparent")
+        action_bar.pack(fill="x", pady=10)
+        
+        # Save all button
+        save_all_btn = ctk.CTkButton(
+            action_bar,
+            text="Save All Questions",
+            font=("Helvetica", 13, "bold"),
+            fg_color="#2d7c32",  # Green color for save
+            hover_color="#1b5e20",
+            height=36
         )
-        add_button.pack(pady=10)
-
+        save_all_btn.pack(side="right", padx=5)
+        
+        # Cancel button
+        cancel_btn = ctk.CTkButton(
+            action_bar,
+            text="Cancel",
+            font=("Helvetica", 13),
+            fg_color="#9e9e9e",  # Gray for cancel
+            hover_color="#757575",
+            height=36
+        )
+        cancel_btn.pack(side="right", padx=5)
+        
         def save_questions():
             try:
                 for q in questions_list:
                     question_text = q['text'].get('1.0', 'end-1c').strip()
-                    options = []
-                    correct_letter = q['correct'].get()
                     
+                    # Validate question text
+                    if not question_text:
+                        messagebox.showerror("Error", "Question text cannot be empty")
+                        return
+                    
+                    options = []
+                    correct_letter = None
+                    
+                    # Find the correct answer
                     for i, opt in enumerate(q['options']):
                         letter = chr(65 + i)
+                        if opt['var'].get() == letter:
+                            correct_letter = letter
+                    
+                    # Validate that a correct answer is selected
+                    if not correct_letter:
+                        messagebox.showerror("Error", "Each question must have a correct answer selected")
+                        return
+                    
+                    # Build options string
+                    for i, opt in enumerate(q['options']):
+                        letter = chr(65 + i)
+                        option_text = opt['entry'].get().strip()
+                        
+                        # Validate option text
+                        if not option_text:
+                            messagebox.showerror("Error", f"Option {letter} cannot be empty")
+                            return
+                        
                         prefix = '*' if letter == correct_letter else ''
-                        options.append(f"{prefix}{letter}:{opt.get().strip()}")
-
+                        options.append(f"{prefix}{letter}:{option_text}")
+                    
+                    # Validate points
+                    try:
+                        points = int(q['points'].get())
+                        if points <= 0:
+                            messagebox.showerror("Error", "Points must be a positive number")
+                            return
+                    except:
+                        messagebox.showerror("Error", "Points must be a valid number")
+                        return
+                    
                     question_data = {
                         'exam_id': self.selected_record_id,
                         'question_text': question_text,
                         'correct_answer': '|'.join(options),
-                        'points': int(q['points'].get()),
+                        'points': points,
                         'question_type': 'multiple_choice'
                     }
-
+                    
                     if q['id']:  # Update existing question
                         self.db_manager.update_record('questions', q['id'], question_data)
                     else:  # Insert new question
                         self.db_manager.insert_record('questions', question_data)
-
-                messagebox.showinfo("Success", "Questions saved successfully!")
+                
+                messagebox.showinfo("Success", f"{len(questions_list)} questions saved successfully!")
                 modal.destroy()
             except Exception as e:
                 messagebox.showerror("Error", str(e))
-
-        # Save button
-        save_button = ctk.CTkButton(
-            modal.container,
-            text="Save All Questions",
-            command=save_questions
-        )
-        save_button.pack(pady=10)
+        
+        # Connect buttons
+        save_all_btn.configure(command=save_questions)
+        cancel_btn.configure(command=modal.destroy)
 
     def open_modal(self, mode="add"):
         modal = BaseModal(
@@ -576,8 +918,8 @@ class AdminDashboard:
         AdminDashboard.center_window(modal, default_width=500, default_height=600)
 
         # Create scrollable form frame
-        form_frame = ctk.CTkScrollableFrame(
-            modal.container,
+        form_frame = ctk.CTkFrame(
+            modal.scrollable_frame,  # Updated from modal.container
             fg_color="transparent"
         )
         form_frame.pack(expand=True, fill="both", padx=5, pady=5)
@@ -699,12 +1041,13 @@ class AdminDashboard:
             self.refresh_table()
 
     def get_columns(self, tab_type):
+        # Ensure column names match the database schema
         columns_map = {
             "trainers": ["id", "name", "class_assigned", "contact_email", "hire_date"],
             "batches": ["id", "batch_year", "num_trainees", "training_duration", "training_location", "trainer_id"],
-            "trainees": ["id", "name", "id_no", "uli", "batch_year", "trainer_name", "exams_taken", "status", "remarks", "batch_id"],
-            "exams": ["id", "title", "module_no", "num_items", "time_limit", "batch_year", "status"],  # Updated
-            "results": ["id", "trainee_id", "trainer_id", "exam_id", "competency", "date_taken", "remarks"]
+            "trainees": ["id", "name", "id_no", "uli", "batch_id", "batch_year", "exams_taken", "status", "remarks"],
+            "exams": ["id", "title", "module_no", "num_items", "time_limit", "batch_id", "created_at", "status"],
+            "results": ["id", "trainee_id", "exam_id", "score", "total_items", "time_spent", "date_taken", "status"]
         }
         return columns_map.get(tab_type, [])
 

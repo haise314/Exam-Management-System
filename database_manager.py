@@ -10,6 +10,7 @@ class DatabaseManager:
         self.conn = None
         self.cursor = None
         self.create_tables()
+        self.migrate_schema()  # Ensure schema is up-to-date
 
     def connect(self):
         """Establish a database connection"""
@@ -61,6 +62,7 @@ class DatabaseManager:
             id_no TEXT UNIQUE NOT NULL,
             uli TEXT UNIQUE,
             batch_id INTEGER NOT NULL,
+            batch_year INTEGER NOT NULL,
             exams_taken INTEGER DEFAULT 0,
             status TEXT CHECK (status IN ('Active', 'Inactive', 'Completed')),
             remarks TEXT,
@@ -118,6 +120,23 @@ class DatabaseManager:
 
         self.conn.commit()
         self.close()
+
+    def migrate_schema(self):
+        """Ensure the database schema is up-to-date."""
+        self.connect()
+        try:
+            # Check if the 'score' column exists in the 'results' table
+            self.cursor.execute("PRAGMA table_info(results)")
+            columns = [col[1] for col in self.cursor.fetchall()]
+            if 'score' not in columns:
+                self.cursor.execute("""
+                ALTER TABLE results ADD COLUMN score INTEGER NOT NULL DEFAULT 0 CHECK (score >= 0)
+                """)
+                self.conn.commit()
+        except sqlite3.Error as e:
+            print(f"Schema migration error: {e}")
+        finally:
+            self.close()
 
     def insert_trainer(self, name, class_assigned, contact_email=None, hire_date=None):
         """Insert a new trainer"""

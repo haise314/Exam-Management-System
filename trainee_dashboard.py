@@ -355,58 +355,21 @@ class TraineeDashboard:
 
     def refresh_results(self):
         try:
-            # Clear existing items
-            for item in self.results_table.get_children():
-                self.results_table.delete(item)
-                
-            # Get results for this trainee
-            conn = sqlite3.connect('exam_management.db')
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT e.title AS exam_title, 
-                       r.score, 
-                       r.total_items, 
-                       (CAST(r.score AS FLOAT) / r.total_items) * 100 AS percentage, 
-                       r.date_taken, 
-                       r.time_spent, 
-                       r.status
-                FROM results r
-                JOIN exams e ON r.exam_id = e.id
-                WHERE r.trainee_id = ?
-            """, (self.trainee_id,))
-            
-            results = cursor.fetchall()
-            
-            # Insert results into table
+            self.results_table.delete(*self.results_table.get_children())
+            results = self.db_manager.get_trainee_results(self.trainee_id)
+
+            # Ensure column order matches the database schema
             for result in results:
-                # Format time spent as minutes:seconds
-                minutes = result[5] // 60
-                seconds = result[5] % 60
-                time_spent = f"{minutes}:{seconds:02d}"
-                
-                values = (
-                    result[0],  # exam_title
-                    f"{result[1]}/{result[2]}",  # score/total_items
-                    f"{result[3]:.1f}%",  # percentage
-                    result[4],  # date_taken
-                    time_spent,  # time_spent
-                    result[6]  # status
-                )
-                
-                # Insert with appropriate tag based on pass/fail status
-                tag = 'passed' if result[6] == 'Passed' else 'failed'
-                self.results_table.insert('', 'end', values=values, tags=(tag,))
-            
-            # Configure tag appearances
-            self.results_table.tag_configure('passed', background='#e8f5e9', foreground='#2e7d32')
-            self.results_table.tag_configure('failed', background='#ffebee', foreground='#c62828')
-            
+                self.results_table.insert('', 'end', values=(
+                    result['exam_title'], 
+                    f"{result['score']}/{result['total_items']}", 
+                    f"{result['percentage']:.1f}%", 
+                    result['date_taken'], 
+                    f"{result['time_spent'] // 60}:{result['time_spent'] % 60:02d}", 
+                    result['status']
+                ))
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load results: {str(e)}")
-        finally:
-            if conn:
-                conn.close()
 
     def take_exam(self):
         selected = self.exams_table.selection()
