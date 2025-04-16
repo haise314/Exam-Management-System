@@ -123,3 +123,83 @@ class BaseModal(ctk.CTkToplevel):
                 corner_radius=8
             )
             btn.pack(side="left", padx=5)
+
+class LoadingIndicator:
+    def __init__(self, parent, text="Loading..."):
+        """Create a loading overlay with spinner"""
+        self.overlay = ctk.CTkFrame(
+            parent,
+            fg_color=THEME["colors"]["surface"] + "CC",  # Add transparency
+            corner_radius=0
+        )
+        
+        self.container = ctk.CTkFrame(
+            self.overlay,
+            fg_color=THEME["colors"]["primary_light"],
+            corner_radius=8
+        )
+        
+        self.label = ctk.CTkLabel(
+            self.container,
+            text=text,
+            font=THEME["fonts"]["body"],
+            text_color=THEME["colors"]["text"]
+        )
+        
+        self.spinner = self._create_spinner()
+        
+    def _create_spinner(self):
+        """Create an animated loading spinner"""
+        canvas = ctk.CTkCanvas(
+            self.container,
+            width=30,
+            height=30,
+            bg=THEME["colors"]["primary_light"],
+            highlightthickness=0
+        )
+        
+        # Create spinning arc
+        self.angle = 0
+        self.arc = canvas.create_arc(
+            5, 5, 25, 25,
+            start=self.angle,
+            extent=300,
+            outline=THEME["colors"]["primary"],
+            width=2
+        )
+        
+        return canvas
+        
+    def show(self):
+        """Display the loading indicator"""
+        # Position overlay to cover parent
+        self.overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        
+        # Center container
+        self.container.place(relx=0.5, rely=0.5, anchor="center")
+        
+        # Add components
+        self.spinner.pack(pady=10)
+        self.label.pack(pady=(0, 10))
+        
+        # Start animation
+        self._animate()
+        
+    def hide(self):
+        """Hide the loading indicator"""
+        self.overlay.place_forget()
+        
+    def _animate(self):
+        """Animate the spinner"""
+        self.angle = (self.angle + 10) % 360
+        self.spinner.itemconfig(
+            self.arc,
+            start=self.angle
+        )
+        
+        # Schedule next frame
+        self.container.after(50, self._animate)
+        
+    def update_text(self, text):
+        """Update the loading text"""
+        self.label.configure(text=text)

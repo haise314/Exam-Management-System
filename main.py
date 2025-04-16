@@ -124,15 +124,18 @@ class ExamManagementApp:
                 self.show_error("Invalid trainee credentials")
 
     def validate_trainee_login(self, username):
-        # Connect to database and check if trainee exists
-        conn = sqlite3.connect('exam_management.db')
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT * FROM trainees WHERE id_no = ?", (username,))
-        trainee = cursor.fetchone()
-        
-        conn.close()
-        return trainee is not None
+        """Validate trainee login using DatabaseManager"""
+        try:
+            # Use existing db_manager instance
+            self.db_manager.connect()
+            self.db_manager.cursor.execute(
+                "SELECT * FROM trainees WHERE id_no = ? AND status = 'Active'", 
+                (username,)
+            )
+            trainee = self.db_manager.cursor.fetchone()
+            return trainee is not None
+        finally:
+            self.db_manager.close()
 
     def open_admin_dashboard(self):
         # Clear login frame
